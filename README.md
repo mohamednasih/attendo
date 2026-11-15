@@ -23,6 +23,7 @@ Your home directory must be mounted at the same path on each workstation.
 | `make run` | Live daily report; Ctrl-C exits |
 | `make once` | One daily JSON report |
 | `make json` | JSON reports at each refresh |
+| `make locks` | Today's lock start/end times, durations, and total |
 | `make collect` | Continuous foreground collection without Attendo login |
 | `make snapshot` | Save available lock intervals once |
 | `make install` | Enable desktop-login collection |
@@ -36,7 +37,18 @@ make run ARGS='--refresh 30'
 make once ARGS='--date 2026-11-14'
 make collect ARGS='--history-dir /path/on/shared/home/history'
 make test PYTHON=/usr/bin/python3
+make locks                          # today's lock periods
+make locks ARGS='--json'             # machine-readable list
+make locks ARGS='--date 2026-11-14'  # a previous day
 ```
+
+`make locks` reads saved periods across machines, the legacy archive, and the
+current supervisor state, without Attendo login or network requests. Duplicate
+and overlapping periods are merged and clipped to the selected day in
+`Africa/Casablanca` (`--timezone` overrides it). An open lock on the current
+machine is marked `ongoing`; its displayed end is the observation time. Saved
+periods from other machines end at their last confirmed observation. This
+command only lists history; keep the collector running to preserve future locks.
 
 Use the same history directory for collection and reports. Default storage is
 `~/.local/state/logged-time/history/`. The collector observes locks every second;

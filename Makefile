@@ -3,7 +3,7 @@
 PYTHON ?= python3
 ARGS ?=
 
-.PHONY: help run once json collect snapshot install uninstall test
+.PHONY: help run once json locks collect snapshot install uninstall test
 
 help:
 	@printf '%s\n' \
@@ -12,6 +12,7 @@ help:
 	  '  make run        Show the live daily report (Ctrl-C to exit)' \
 	  '  make once       Print one daily JSON report' \
 	  '  make json       Print JSON reports every refresh' \
+	  '  make locks      List today’s lock periods and total locked time' \
 	  '  make collect    Collect lock history in the foreground' \
 	  '  make snapshot   Save current lock history once' \
 	  '  make install    Enable collection at the next desktop login' \
@@ -30,6 +31,9 @@ once:
 
 json:
 	$(PYTHON) daily.py --json $(ARGS)
+
+locks:
+	$(PYTHON) shared_history.py list $(ARGS)
 
 collect:
 	$(PYTHON) shared_history.py collect $(ARGS)

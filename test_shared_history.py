@@ -1,11 +1,13 @@
 import json
+from datetime import date, datetime
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from logged_time import locked_seconds, snapshot
-from shared_history import HistoryWriter, HistoryCollector, fetch_history, legacy_history
+from shared_history import HistoryWriter, HistoryCollector, fetch_history, legacy_history, list_locks, format_locks
 
 
 class SharedTests(unittest.TestCase):
@@ -100,6 +102,46 @@ class SharedTests(unittest.TestCase):
         self.assertIsNone(collector.error)
         rows, _ = fetch_history(self.directory, 'student', 0, 100)
         self.assertEqual(rows, [(10, 20)])
+
+    def test_list_merges_sources_clips_midnight_and_marks_open_lock(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        day = date(2026, 11, 15)
+        start = datetime(2026, 11, 15, tzinfo=zone).timestamp()
+        now = start + 3600
+        writer = HistoryWriter(self.directory, 'student', 'machine-a')
+        writer.observe([(start-60, start+60), (start+30, start+90)], now)
+        with patch('shared_history.read_state', return_value=[(now-30, None)]), \
+             patch('shared_history.legacy_history', return_value=[(start+60, start+120)]):
+            data = list_locks(self.directory, 'student', Path('unused'), Path('unused'), day, zone, now)
+        self.assertEqual(data['locked_seconds'], 150)
+        self.assertEqual(len(data['periods']), 2)
+        self.assertEqual(data['periods'][0]['seconds'], 120)
+        self.assertFalse(data['periods'][0]['ongoing'])
+        self.assertTrue(data['periods'][1]['ongoing'])
+        self.assertIn('00:02:30', format_locks(data))
+
+    def test_list_missing_current_state_keeps_saved_periods(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        day = date(2026, 11, 15)
+        start = datetime(2026, 11, 15, tzinfo=zone).timestamp()
+        writer = HistoryWriter(self.directory, 'student', 'machine-a')
+        writer.observe([(start+10, start+20)], start+60)
+        with patch('shared_history.read_state', side_effect=OSError('unavailable')), \
+             patch('shared_history.legacy_history', return_value=[]):
+            data = list_locks(self.directory, 'student', Path('unused'), Path('unused'), day, zone, start+100)
+        self.assertEqual(data['locked_seconds'], 10)
+        self.assertTrue(any('Current lock state unavailable' in w for w in data['warnings']))
+
+    def test_list_empty_and_future_day(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        day = date(2026, 11, 15)
+        now = datetime(2026, 11, 15, 12, tzinfo=zone).timestamp()
+        with patch('shared_history.read_state', return_value=[]), \
+             patch('shared_history.legacy_history', return_value=[]):
+            data = list_locks(self.directory, 'student', Path('unused'), Path('unused'), day, zone, now)
+            self.assertIn('No observed lock periods', format_locks(data))
+            with self.assertRaises(ValueError):
+                list_locks(self.directory, 'student', Path('unused'), Path('unused'), date(2026, 11, 16), zone, now)
 
 
 if __name__ == '__main__':
