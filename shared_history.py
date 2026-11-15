@@ -195,7 +195,7 @@ class HistoryCollector:
         self.thread.join(timeout=2)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('collect', 'list'))
     parser.add_argument('--history-dir', type=Path, default=DEFAULT_HISTORY)
@@ -206,7 +206,7 @@ def main():
     parser.add_argument('--timezone', default='Africa/Casablanca')
     parser.add_argument('--archive', type=Path, default=DEFAULT_ARCHIVE)
     parser.add_argument('--json', action='store_true', help='List periods as JSON')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         if args.mode == 'list':
             zone = ZoneInfo(args.timezone)

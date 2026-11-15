@@ -1,0 +1,7 @@
+{
+  "uuid": "logged-time@local",
+  "name": "Logged Time",
+  "description": "Attendo logged time and observed workstation lock periods in the top bar.",
+  "shell-version": ["42"],
+  "version": 1
+}

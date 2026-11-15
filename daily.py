@@ -104,7 +104,22 @@ def format_report(data, refresh):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    if sys.argv[1:2] == ['dock']:
+        import os
+        os.execv('/usr/bin/python3', ['/usr/bin/python3', str(Path(__file__).resolve().with_name('dock_dashboard.py')), *sys.argv[2:]])
+    if sys.argv[1:2] == ['notifications']:
+        import os
+        os.execv('/usr/bin/python3', ['/usr/bin/python3', str(Path(__file__).resolve().with_name('desktop_notification.py')), *sys.argv[2:]])
+    if sys.argv[1:2] == ['widget']:
+        import os
+        os.execv('/usr/bin/python3', ['/usr/bin/python3', str(Path(__file__).resolve().with_name('desktop_widget.py')), *sys.argv[2:]])
+    if sys.argv[1:2] == ['locks']:
+        from shared_history import main as history_main
+        return history_main(['list', *sys.argv[2:]])
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog='Use logged-time locks [--date YYYY-MM-DD] [--json] to display lock periods.',
+    )
     parser.add_argument('--once', action='store_true', help='Fetch and print one report')
     parser.add_argument('--date', type=date.fromisoformat, help='Default: today, rolling at midnight')
     parser.add_argument('--timezone', default='Africa/Casablanca')

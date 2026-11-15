@@ -1,5 +1,58 @@
 # Logged time calculator
 
+## GNOME top-bar extension
+
+Another independent option is `logged-time dock`, also available as
+**Logged Time Dashboard** in the application menu. It shows totals, today's
+lock periods, and history notes in a normal GNOME window. Right-click its dock
+icon and choose **Add to Favorites** to keep the launcher there. The launcher's
+right-click actions also open the notification card or print locks in a
+terminal. This mode loads once and refreshes on request; it does not replace
+or stop the notification card.
+
+For native integration without enabling an extension, run
+`logged-time notifications` or open **Logged Time Notifications** from the
+application menu. It keeps a resident card in GNOME's notification center
+(click the top-bar clock or press Super+V), with **Refresh**, **Show locks**,
+and **Quit** actions. Reports load once and refresh only on interaction.
+It observes locks while running. Dismissing the notification or choosing Quit
+stops this mode. This requires system Python's `Notify` bindings. The card is
+in the notification center; it does not add a time label to the top bar.
+
+On workstations that lock the list of enabled GNOME extensions, use
+`logged-time widget` instead. This opens a compact, borderless indicator that
+follows the system GTK theme and stays above other windows. Drag the clock icon
+to move it. Click the time for totals, today's lock periods, history notes,
+Refresh, and Quit. Reports refresh when you open the popover or click Refresh,
+after an initial load. Lock collection continues while the widget is open.
+It requires the system Python's GTK 3 bindings (`python3-gi` and
+`gir1.2-gtk-3.0`), which are already installed on this workstation. Close the
+window to stop it. The application menu also includes a Logged Time launcher.
+
+The included extension supports GNOME Shell 42 (including this machine's 42.9).
+It shows estimated logged time in the panel. Click it for Attendo totals, lock
+deductions, and a submenu listing today's lock periods and total locked time.
+Reports refresh every 60 seconds; opening the menu refreshes lock periods.
+
+```bash
+python3 install-gnome-extension.py
+gnome-extensions enable logged-time@local
+```
+
+If GNOME does not recognize the newly installed extension, log out and back in,
+then enable it. Keep the project at its current location. The extension uses the
+same Firefox login and shared history as the command-line app, and may open
+Firefox when Attendo login is needed. Backend work runs asynchronously outside
+GNOME Shell. Errors and incomplete-history warnings appear in the menu.
+
+The extension collects locks while enabled in the unlocked desktop session.
+Use `make install` to keep the independent collector running through screen
+locks and preserve observations even when the extension is disabled.
+
+Disable with `gnome-extensions disable logged-time@local`. This stops the
+extension's backend processes; the separately installed autostart collector and
+saved history are preserved.
+
 ## Quick start
 
 Requires Python 3.10 or newer, Bash for installation, and Make for the shortcuts
@@ -17,6 +70,15 @@ make run        # view today's estimated logged time
 Complete the official login in Firefox if prompted. Installing autostart needs
 no sudo and only enables the collector; open the report whenever you want.
 Your home directory must be mounted at the same path on each workstation.
+
+With the `logged-time` command installed on your PATH, display lock periods from
+any directory:
+
+```bash
+logged-time locks                    # today's lock periods and total
+logged-time locks --date 2026-11-14  # a previous day
+logged-time locks --json             # machine-readable list
+```
 
 | Command | Purpose |
 | --- | --- |
