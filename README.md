@@ -63,7 +63,7 @@ From this project directory:
 
 ```bash
 make help       # list available commands (also the default for make)
-make install    # collect automatically starting at the next desktop login
+make install    # install logged-time on PATH and enable login collection
 make run        # view today's estimated logged time
 ```
 
@@ -88,8 +88,8 @@ logged-time locks --json             # machine-readable list
 | `make locks` | Today's lock start/end times, durations, and total |
 | `make collect` | Continuous foreground collection without Attendo login |
 | `make snapshot` | Save available lock intervals once |
-| `make install` | Enable desktop-login collection |
-| `make uninstall` | Disable autostart while preserving history |
+| `make install` | Install the PATH command and enable desktop-login collection |
+| `make uninstall` | Remove the command and autostart while preserving history |
 | `make test` | Run tests using synthetic data and mocked network requests |
 
 Pass extra script options through `ARGS`, or choose Python with `PYTHON`:
@@ -142,7 +142,15 @@ To collect automatically at desktop login on every machine mounting this home:
 ./install.sh
 ```
 
-The installer adds `~/.config/autostart/logged-time.desktop` (or uses
+The installer creates an executable `~/.local/bin/logged-time` launcher so you
+can run `logged-time`, `logged-time locks`, `logged-time widget`,
+`logged-time notifications`, and `logged-time dock` from any directory.
+`~/.local/bin` is already on this workstation's PATH. For another writable PATH
+directory, use `BIN_DIR=/your/bin make install` (use the same override for
+uninstall). If the selected directory is absent from PATH, the installer tells
+you to add it to your shell configuration.
+
+The installer also adds `~/.config/autostart/logged-time.desktop` (or uses
 `XDG_CONFIG_HOME` when set). It requires no root access. Collection starts at
 the next desktop login; keep this project at its installed location. Running
 the installer again updates the entry. To disable autostart while preserving

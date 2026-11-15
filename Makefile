@@ -15,8 +15,8 @@ help:
 	  '  make locks      List today’s lock periods and total locked time' \
 	  '  make collect    Collect lock history in the foreground' \
 	  '  make snapshot   Save current lock history once' \
-	  '  make install    Enable collection at the next desktop login' \
-	  '  make uninstall  Disable autostart; preserve saved history' \
+	  '  make install    Install logged-time on PATH and enable login collection' \
+	  '  make uninstall  Remove command and autostart; preserve saved history' \
 	  '  make test       Run the offline test suite' \
 	  '' \
 	  'Options: PYTHON=python3 ARGS="--refresh 30"' \

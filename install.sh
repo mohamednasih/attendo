@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the collector for desktop login; no root access required.
+# Install the PATH command and desktop-login collector; no root access required.
 set -euo pipefail
 
 case "${1:-}" in
@@ -25,14 +25,19 @@ fi
 "$python_bin" - "$project_dir" "$config_dir" "${1:-}" "$python_bin" <<'PY'
 import os
 from pathlib import Path
+import shlex
 import sys
 import tempfile
 
 project, config, action, python = sys.argv[1:]
 target = Path(config) / 'autostart/logged-time.desktop'
+bin_dir = Path(os.environ.get('BIN_DIR') or Path.home() / '.local/bin').expanduser().absolute()
+command = bin_dir / 'logged-time'
 if action == '--uninstall':
     target.unlink(missing_ok=True)
+    command.unlink(missing_ok=True)
     print(f'Removed autostart: {target}')
+    print(f'Removed command: {command}')
     print('Existing history is preserved. Any running collector stops at logout.')
     sys.exit(0)
 
@@ -57,19 +62,28 @@ entry = '\n'.join([
     'X-GNOME-Autostart-enabled=true',
     '',
 ])
-target.parent.mkdir(parents=True, exist_ok=True)
-temporary = None
-try:
-    with tempfile.NamedTemporaryFile(mode='w', dir=target.parent, delete=False) as output:
-        temporary = Path(output.name)
-        output.write(entry)
-        output.flush()
-        os.fsync(output.fileno())
-    os.replace(temporary, target)
-finally:
-    if temporary is not None:
-        temporary.unlink(missing_ok=True)
+def atomic_write(path, text, mode):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as output:
+            temporary = Path(output.name)
+            output.write(text)
+            output.flush()
+            os.fsync(output.fileno())
+            os.fchmod(output.fileno(), mode)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+launcher = f'#!/bin/sh\nexec {shlex.quote(python)} {shlex.quote(str(Path(project) / "daily.py"))} "$@"\n'
+atomic_write(command, launcher, 0o755)
+atomic_write(target, entry, 0o644)
+print(f'Installed command: {command}')
+if str(bin_dir) not in os.environ.get('PATH', '').split(os.pathsep):
+    print(f'Add this directory to your shell PATH: {bin_dir}')
 print(f'Installed autostart: {target}')
 print('Collection starts at your next desktop login, on machines mounting this home.')
-print(f'Keep the project at {project}. Run daily.py to view your totals.')
+print(f'Keep the project at {project}. Run logged-time to view your totals.')
 PY
