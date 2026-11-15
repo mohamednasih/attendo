@@ -2,7 +2,6 @@
 """Live daily Attendo time minus locally observed lock time."""
 import argparse
 from datetime import date, datetime, time as day_time, timedelta
-import importlib.util
 import json
 import math
 import getpass
@@ -13,18 +12,10 @@ import sys
 import time
 from zoneinfo import ZoneInfo
 
+import attendo_client as client
+
 from logged_time import DEFAULT_ARCHIVE, DEFAULT_STATE, locked_seconds, read_state
 from shared_history import DEFAULT_HISTORY, HistoryCollector, fetch_history, legacy_history
-
-
-def load_client(path):
-    spec = importlib.util.spec_from_file_location('logged_time_attendo', path)
-    if spec is None or spec.loader is None:
-        raise ValueError(f'Cannot load Attendo client at {path}')
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 def day_window(day, zone, now):
@@ -122,7 +113,6 @@ def main():
     parser.add_argument('--state', type=Path, default=DEFAULT_STATE)
     parser.add_argument('--archive', type=Path, default=DEFAULT_ARCHIVE)
     parser.add_argument('--history-dir', type=Path, default=DEFAULT_HISTORY, help='History directory on the shared home mount')
-    parser.add_argument('--attendo-client', type=Path, default=Path(__file__).resolve().parent.parent / 'attendo-tui/attendo.py')
     args = parser.parse_args()
     collector = None
     try:
@@ -131,7 +121,6 @@ def main():
         zone = ZoneInfo(args.timezone)
         collector = HistoryCollector(args.history_dir, getpass.getuser(), args.state)
         collector.start()
-        client = load_client(args.attendo_client)
         client.ensure_browser_session()
         profile = None
         next_fetch = 0

@@ -20,7 +20,7 @@ class DailyTests(unittest.TestCase):
         with patch('sys.argv', ['daily.py', '--once']), \
              patch('daily.HistoryCollector') as collector, \
              patch('daily.time.time', return_value=cutoff + 3600), \
-             patch('daily.load_client', return_value=client), \
+             patch('daily.client', client), \
              patch('daily.read_state', return_value=[]), \
              patch('daily.legacy_history', return_value=[]), \
              patch('daily.fetch_history', return_value=([(cutoff-30, cutoff)], [])), redirect_stdout(output):
