@@ -14,7 +14,8 @@ class DailyTests(unittest.TestCase):
         profile = SimpleNamespace(live_estimate='01:00', login='student',
                                   fetched_at=datetime(2026, 11, 15, 12, tzinfo=ZoneInfo('Africa/Casablanca')))
         client = SimpleNamespace(ensure_browser_session=lambda: None,
-                                 fetch_profile=lambda: profile, AttendoError=RuntimeError)
+                                 fetch_profile=lambda: profile, AttendoError=RuntimeError,
+                                 attendance_goal=lambda p: None)
         cutoff = profile.fetched_at.timestamp()
         output = StringIO()
         with patch('sys.argv', ['daily.py', '--once']), \

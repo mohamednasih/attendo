@@ -64,6 +64,7 @@ def report(profile, day, zone, intervals, now, warnings):
     difference = total - deduction
     return {
         'date': day.isoformat(), 'timezone': str(zone), 'username': profile.login,
+        'attendance_goal': client.attendance_goal(profile),
         'attendo_seconds': total, 'locked_seconds': locked,
         'lock_deduction_seconds': deduction,
         'time_kind': 'estimated' if day == today else 'recorded',
@@ -117,8 +118,30 @@ def main():
         from shared_history import main as history_main
         return history_main(['list', *sys.argv[2:]])
     parser = argparse.ArgumentParser(
+        prog='logged-time',
+        usage='%(prog)s [COMMAND] [OPTIONS]',
         description=__doc__,
-        epilog='Use logged-time locks [--date YYYY-MM-DD] [--json] to display lock periods.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''Commands:
+  (no command)   Show the live daily report; Ctrl-C to exit
+  locks          Display lock periods and total locked time
+  notifications  GNOME notification card with Refresh and Show locks actions
+  widget         Compact floating time indicator; click for details
+  dock           GNOME dashboard with totals and lock history
+
+Examples:
+  logged-time
+  logged-time --once
+  logged-time --date 2026-11-14 --once
+  logged-time locks
+  logged-time locks --date 2026-11-14 --json
+  logged-time notifications
+  logged-time widget
+  logged-time dock
+
+Report options are listed above. For lock options, use logged-time locks --help.
+Desktop reports load initially and refresh on interaction.
+Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; locks work offline.''',
     )
     parser.add_argument('--once', action='store_true', help='Fetch and print one report')
     parser.add_argument('--date', type=date.fromisoformat, help='Default: today, rolling at midnight')
@@ -186,6 +209,11 @@ def main():
             if collector.error:
                 warnings.append(collector.error)
             data = report(profile, args.date or today, zone, intervals, now, warnings)
+            from dataclasses import asdict
+            data['attendance_periods'] = [dict(asdict(period), label=label)
+                                          for label, period in (('Current period', getattr(profile, 'current', None)),
+                                                                ('Previous period', getattr(profile, 'previous', None)))
+                                          if period is not None]
             data['history_source'] = 'attendo_recorded' if data['time_kind'] == 'recorded' else 'shared_home'
             if args.json or args.once:
                 print(json.dumps(data), flush=True)

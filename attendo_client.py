@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-contained Attendo profile reader and Firefox session authentication."""
+"""Self-contained Attendo profile reader and Firefox, Chrome, and Brave session authentication."""
 from __future__ import annotations
 
 import configparser
@@ -54,6 +54,7 @@ class Snapshot:
     previous: Period | None
     live_estimate: str | None
     fetched_at: datetime
+    target_hours: float | None = None
 
 
 class _ScriptCollector(HTMLParser):
@@ -93,6 +94,38 @@ def _next_data(html: str) -> str:
         if isinstance(payload, list) and len(payload) > 1 and isinstance(payload[1], str):
             chunks.append(payload[1])
     return "".join(chunks)
+
+
+class _VisibleText(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.hidden = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ('script', 'style'):
+            self.hidden += 1
+
+    def handle_endtag(self, tag):
+        if tag in ('script', 'style'):
+            self.hidden = max(0, self.hidden - 1)
+
+    def handle_data(self, text):
+        if not self.hidden and text.strip():
+            self.parts.append(text.strip())
+
+
+def attendance_goal(profile):
+    target = getattr(profile, 'target_hours', None)
+    if target is None:
+        return None
+    current = getattr(profile, 'current', None)
+    remaining_days = max(0, 7 - current.counted_days) if current else 7
+    remaining_hours = max(0, target - current.total) if current else target
+    return {'target_seconds': target * 3600,
+            'remaining_seconds': remaining_hours * 3600,
+            'remaining_days': remaining_days,
+            'daily_seconds': remaining_hours * 3600 / remaining_days if remaining_days else None}
 
 
 def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
@@ -137,7 +170,15 @@ def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
         current = None
         previous = periods[-1]
 
+    visible = _VisibleText()
+    visible.feed(html)
+    target_match = re.search(r'Attendance target\s+(\d+(?:\.\d+)?)\s*h\s+per counted-day period',
+                             ' '.join(visible.parts), re.IGNORECASE)
+    target = float(target_match[1]) if target_match else None
+    if target is not None and not 0 < target < 10000:
+        target = None
     return Snapshot(
+        target_hours=target,
         login=login,
         current=current,
         previous=previous,
@@ -245,6 +286,91 @@ def firefox_student_token(roots: tuple[Path, ...] | None = None) -> str | None:
     return None
 
 
+def _browser_order():
+    selected = os.environ.get('ATTENDO_BROWSER', 'auto').strip().lower()
+    if selected not in ('auto', 'firefox', 'chrome', 'brave'):
+        raise AttendoError('ATTENDO_BROWSER must be auto, firefox, chrome, or brave.')
+    return ('firefox', 'chrome', 'brave') if selected == 'auto' else (selected,)
+
+
+def _chromium_cookie_files(browser):
+    home = Path.home()
+    config = Path(os.environ.get('XDG_CONFIG_HOME') or home / '.config')
+    roots = ([config / 'google-chrome', config / 'google-chrome-beta',
+              home / '.var/app/com.google.Chrome/config/google-chrome'] if browser == 'chrome'
+             else [config / 'BraveSoftware/Brave-Browser',
+                   home / '.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser'])
+    files = []
+    for root in roots:
+        for profile in [root / 'Default', *sorted(root.glob('Profile *'))]:
+            for database in (profile / 'Network/Cookies', profile / 'Cookies'):
+                if database.is_file():
+                    files.append(database)
+    return files
+
+
+def chromium_student_token(browser):
+    """Read Attendo cookies using the browser's normal desktop keyring."""
+    files = _chromium_cookie_files(browser)
+    if not files:
+        return None
+    dependencies = Path(__file__).resolve().parent / '.browser-deps'
+    if dependencies.is_dir() and str(dependencies) not in sys.path:
+        sys.path.insert(0, str(dependencies))
+    try:
+        import browser_cookie3
+    except ImportError:
+        raise AttendoError('Chrome/Brave cookie support is missing. Run make dependencies.') from None
+    loader = getattr(browser_cookie3, browser)
+    for database in files:
+        try:
+            cookies = loader(cookie_file=str(database), domain_name='attendo.1337.ma')
+            candidates = [cookie for cookie in cookies
+                          if cookie.name == 'student_token'
+                          and cookie.domain in ('attendo.1337.ma', '.attendo.1337.ma')
+                          and cookie.value and not cookie.is_expired()]
+            if candidates:
+                return max(candidates, key=lambda cookie: cookie.expires or float('inf')).value
+        except Exception:
+            # Keyring and database errors vary by desktop. Never include their
+            # contents in logs, where decrypted cookies could be exposed.
+            continue
+    return None
+
+
+def browser_student_token():
+    for browser in _browser_order():
+        token = firefox_student_token() if browser == 'firefox' else chromium_student_token(browser)
+        if token:
+            return token
+    return None
+
+
+def _browser_command():
+    for browser in _browser_order():
+        if browser == 'firefox':
+            try:
+                return _firefox_command()
+            except AttendoError:
+                continue
+        commands = ('google-chrome', 'google-chrome-stable') if browser == 'chrome' else ('brave-browser', 'brave-browser-stable', 'brave')
+        for name in commands:
+            executable = shutil.which(name)
+            if executable:
+                return [executable]
+        flatpak = shutil.which('flatpak')
+        app = 'com.google.Chrome' if browser == 'chrome' else 'com.brave.Browser'
+        if flatpak:
+            try:
+                check = subprocess.run([flatpak, 'info', app], stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL, timeout=5)
+                if check.returncode == 0:
+                    return [flatpak, 'run', app]
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+    raise AttendoError('Install Firefox, Chrome, or Brave, or set ATTENDO_TOKEN.')
+
+
 def _firefox_command() -> list[str]:
     """Return a working Firefox command, including sandboxed installations."""
     errors: list[str] = []
@@ -292,31 +418,31 @@ def _firefox_command() -> list[str]:
 
 
 def ensure_browser_session(timeout: int = 180) -> None:
-    """Reuse Firefox's Attendo session or open the supported 42 OAuth flow."""
+    """Reuse an available Attendo browser session or open the supported 42 OAuth flow."""
     global _browser_cookie
     if os.environ.get("ATTENDO_COOKIE", "").strip() or os.environ.get("ATTENDO_TOKEN", "").strip():
         return
-    token = firefox_student_token()
+    token = browser_student_token()
     if token:
         _browser_cookie = token
         return
     if not sys.stdin.isatty():
-        raise AttendoError("ATTENDO_TOKEN is not set and interactive browser login is unavailable.")
-    firefox_command = _firefox_command()
-    print("No Attendo session found. Opening the 42 sign-in in Firefox…", file=sys.stderr)
+        raise AttendoError("No Attendo session found in Firefox, Chrome, or Brave. Sign in and unlock your desktop keyring, then refresh; or set ATTENDO_TOKEN.")
+    browser_command = _browser_command()
+    print("No Attendo session found. Opening the 42 sign-in in your browser…", file=sys.stderr)
     print("Complete the login there; this terminal will continue automatically.", file=sys.stderr)
     try:
         subprocess.Popen(
-            [*firefox_command, LOGIN_URL],
+            [*browser_command, LOGIN_URL],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
     except OSError as exc:
-        raise AttendoError(f"Could not open Firefox: {exc}") from exc
+        raise AttendoError(f"Could not open browser: {exc}") from exc
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        token = firefox_student_token()
+        token = browser_student_token()
         if token:
             _browser_cookie = token
             print("Attendo session acquired.", file=sys.stderr)
@@ -328,7 +454,7 @@ def ensure_browser_session(timeout: int = 180) -> None:
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         # An expired session can redirect to login; never forward its cookie.
-        raise AttendoError('Attendo redirected the profile request. Sign in again in Firefox or refresh ATTENDO_TOKEN.')
+        raise AttendoError('Attendo redirected the profile request. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.')
 
 
 def fetch_profile(timeout: float = 15.0) -> Snapshot:
@@ -345,7 +471,7 @@ def fetch_profile(timeout: float = 15.0) -> Snapshot:
             raise AttendoError('Attendo profile response is too large.')
     except urllib.error.HTTPError as error:
         if error.code in (401, 403):
-            raise AttendoError('Attendo rejected the session. Sign in again in Firefox or refresh ATTENDO_TOKEN.') from error
+            raise AttendoError('Attendo rejected the session. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.') from error
         raise AttendoError(f'Attendo returned HTTP {error.code}.') from error
     except (urllib.error.URLError, OSError) as error:
         raise AttendoError('Could not reach Attendo; check your connection.') from error

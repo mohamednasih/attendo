@@ -1,5 +1,42 @@
 # Logged time calculator
 
+## Local website
+
+Run `make` to pull the latest updates with `git pull --ff-only`, install the
+command, enable desktop-login startup, and restart the web server in the
+background. If the pull fails, installation and restart stop. Local edits are
+never stashed or discarded automatically. Use `make install` to install the
+current checkout without pulling. Then visit **http://localhost:8080**.
+Use `make PORT=8081` to choose another port on installation. Each `make` restarts the managed server so updated code and port settings take
+effect.
+
+Run `make uninstall` to stop the managed server and its collector and remove
+the command, desktop startup entry, PID record, and server log. Saved lock
+history is preserved. Runtime files live under
+`${XDG_STATE_HOME:-~/.local/state}/logged-time-web`.
+
+For a foreground server instead, run `make web` (or
+`make web ARGS="--port 8081"`) and stop it with Ctrl-C.
+
+The responsive dashboard shows Attendo attendance, estimated logged time,
+observed screen locks, a daily recommendation derived from Attendo’s period target, and past-day reports.
+It also shows current and previous Attendo attendance periods with recorded
+daily hours and counted-day status. Select a day for details, or export the
+selected period as CSV. Past-day views show only Attendo’s recorded time and
+observed locked time, without subtraction or a calculated logged-time card.
+The recommendation divides remaining period hours by remaining counted days,
+matching Attendo. If its target is unavailable, no custom goal is substituted.
+Refresh data bypasses the short server cache.
+It refreshes every 60 seconds. The server binds only to this computer and uses
+Python with browser-cookie3 installed automatically by make for Chrome/Brave.
+
+Sign in to Attendo in Firefox, Chrome, or Brave before refreshing, or supply `ATTENDO_TOKEN` in
+the server's environment. Credentials stay in the Python backend. Missing
+attendance is shown as unavailable; lock history remains available independently.
+The collector runs while the server is open. Existing calculation and history
+limitations described below still apply. Web fonts are optional; the layout
+uses system fonts if they cannot load.
+
 ## GNOME top-bar extension
 
 Another independent option is `logged-time dock`, also available as
@@ -41,8 +78,8 @@ gnome-extensions enable logged-time@local
 
 If GNOME does not recognize the newly installed extension, log out and back in,
 then enable it. Keep the project at its current location. The extension uses the
-same Firefox login and shared history as the command-line app, and may open
-Firefox when Attendo login is needed. Backend work runs asynchronously outside
+same browser login and shared history as the command-line app, and may open
+your selected browser when Attendo login is needed. Backend work runs asynchronously outside
 GNOME Shell. Errors and incomplete-history warnings appear in the menu.
 
 The extension collects locks while enabled in the unlocked desktop session.
@@ -57,7 +94,7 @@ saved history are preserved.
 
 Requires Python 3.10 or newer, Bash for installation, and Make for the shortcuts
 below. No pip packages are required. Automatic session reuse/login requires
-Firefox; alternatively supply your Attendo token through `ATTENDO_TOKEN`.
+Firefox, Chrome, or Brave; alternatively supply your Attendo token through `ATTENDO_TOKEN`.
 
 From this project directory:
 
@@ -67,7 +104,7 @@ make install    # install logged-time on PATH and enable login collection
 make run        # view today's estimated logged time
 ```
 
-Complete the official login in Firefox if prompted. Installing autostart needs
+Complete the official login in Firefox, Chrome, or Brave if prompted. Installing autostart needs
 no sudo and only enables the collector; open the report whenever you want.
 Your home directory must be mounted at the same path on each workstation.
 
@@ -88,8 +125,9 @@ logged-time locks --json             # machine-readable list
 | `make locks` | Today's lock start/end times, durations, and total |
 | `make collect` | Continuous foreground collection without Attendo login |
 | `make snapshot` | Save available lock intervals once |
-| `make install` | Install the PATH command and enable desktop-login collection |
-| `make uninstall` | Remove the command and autostart while preserving history |
+| `make` | Pull updates, install, and restart the background website |
+| `make install` | Install the current checkout and start the website without pulling |
+| `make uninstall` | Stop the managed server and remove installed launchers and runtime files; preserve history |
 | `make test` | Run tests using synthetic data and mocked network requests |
 
 Pass extra script options through `ARGS`, or choose Python with `PYTHON`:
@@ -151,10 +189,10 @@ uninstall). If the selected directory is absent from PATH, the installer tells
 you to add it to your shell configuration.
 
 The installer also adds `~/.config/autostart/logged-time.desktop` (or uses
-`XDG_CONFIG_HOME` when set). It requires no root access. Collection starts at
-the next desktop login; keep this project at its installed location. Running
+`XDG_CONFIG_HOME` when set). It requires no root access. The website and its collector start immediately and at
+each desktop login; keep this project at its installed location. Running
 the installer again updates the entry. To disable autostart while preserving
-history, run `./install.sh --uninstall`. A running collector stops at logout.
+history, run `./install.sh --uninstall`. The managed background server and its collector stop immediately.
 
 ```bash
 python3 daily.py --once                  # one JSON report for today
@@ -230,9 +268,9 @@ pruned while the home was unavailable cannot be reconstructed.
 
 The bundled `attendo_client.py` fetches
 `https://attendo.1337.ma/students/profile` directly. This project is self-contained.
-It reuses your unexpired Attendo `student_token` cookie from Firefox. When no
+It reuses your unexpired Attendo `student_token` cookie from Firefox, Chrome, or Brave. When no
 session exists and the terminal is interactive, it opens the official 42 login
-flow in Firefox and waits for you to complete sign-in.
+flow in Firefox, Chrome, or Brave and waits for you to complete sign-in.
 
 Alternatively provide `ATTENDO_TOKEN` through the environment; `ATTENDO_COOKIE`
 can supply a full cookie header and `ATTENDO_LOGIN` can accompany a token.
@@ -240,7 +278,7 @@ Credentials are not printed or saved by this app. Profile redirects are rejected
 so cookies are not forwarded to another destination. Expired sessions produce
 an error asking you to sign in again. The shared-history collector requires no
 Attendo authentication and makes no network requests. Python 3, standard library
-only; Firefox is needed only for automatic browser-session authentication.
+plus browser-cookie3 for Chrome/Brave cookie decryption.
 
 ## Manual raw-total calculation
 
@@ -278,3 +316,18 @@ the automatic shared-home calculation.
   API was not called.
 
 Run checks with `python3 -m unittest -v`.
+
+### Chrome and Brave login
+
+`make` installs Chrome/Brave cookie support in the isolated `.browser-deps/`
+directory, which `make uninstall` removes. For the current checkout, run
+`make dependencies` without pulling. Sign in to Attendo in Firefox, Chrome, or
+Brave, then refresh the dashboard. Default and additional numbered Chrome/Brave
+profiles are checked, including supported Flatpak locations. Chrome/Brave use
+your desktop keyring, which must be unlocked in the same desktop session.
+
+Automatic detection checks Firefox, Chrome, then Brave. To select one browser,
+launch with `ATTENDO_BROWSER=chrome make` or `ATTENDO_BROWSER=brave make`.
+Installation remembers this choice for desktop-login startup.
+The foreground command also accepts this environment variable. If a browser's
+cookie encryption is unavailable, use Firefox or `ATTENDO_TOKEN`.

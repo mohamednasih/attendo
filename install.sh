@@ -26,6 +26,7 @@ fi
 import os
 from pathlib import Path
 import shlex
+import subprocess
 import sys
 import tempfile
 
@@ -33,12 +34,16 @@ project, config, action, python = sys.argv[1:]
 target = Path(config) / 'autostart/logged-time.desktop'
 bin_dir = Path(os.environ.get('BIN_DIR') or Path.home() / '.local/bin').expanduser().absolute()
 command = bin_dir / 'logged-time'
+browser = os.environ.get('ATTENDO_BROWSER', 'auto').strip().lower()
+if browser not in ('auto', 'firefox', 'chrome', 'brave'):
+    sys.exit('ATTENDO_BROWSER must be auto, firefox, chrome, or brave.')
 if action == '--uninstall':
+    subprocess.run([python, str(Path(project) / 'server_control.py'), 'stop'], check=True)
     target.unlink(missing_ok=True)
     command.unlink(missing_ok=True)
     print(f'Removed autostart: {target}')
     print(f'Removed command: {command}')
-    print('Existing history is preserved. Any running collector stops at logout.')
+    print('Uninstalled. Existing lock history is preserved.')
     sys.exit(0)
 
 collector = Path(project) / 'shared_history.py'
@@ -55,9 +60,9 @@ def desktop_arg(value):
 entry = '\n'.join([
     '[Desktop Entry]',
     'Type=Application',
-    'Name=Logged Time Collector',
-    'Comment=Save workstation lock history to your shared home',
-    f'Exec={desktop_arg(python)} {desktop_arg(str(collector))} collect',
+    'Name=Logged Time',
+    'Comment=Start the local attendance dashboard and lock collector',
+    f'Exec={desktop_arg("/usr/bin/env")} {desktop_arg("ATTENDO_BROWSER=" + browser)} {desktop_arg(python)} {desktop_arg(str(Path(project) / "server_control.py"))} start --port {int(os.environ.get("PORT", "8080"))}',
     'Terminal=false',
     'X-GNOME-Autostart-enabled=true',
     '',
@@ -84,6 +89,6 @@ print(f'Installed command: {command}')
 if str(bin_dir) not in os.environ.get('PATH', '').split(os.pathsep):
     print(f'Add this directory to your shell PATH: {bin_dir}')
 print(f'Installed autostart: {target}')
-print('Collection starts at your next desktop login, on machines mounting this home.')
+subprocess.run([python, str(Path(project) / 'server_control.py'), 'start', '--port', os.environ.get('PORT', '8080')], check=True)
 print(f'Keep the project at {project}. Run logged-time to view your totals.')
 PY
