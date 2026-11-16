@@ -21,6 +21,7 @@ class WebsiteTests(unittest.TestCase):
     def test_cached_fetch_avoids_repeated_upstream_requests(self):
         with patch.object(website, 'command_json', return_value={}) as fetch:
             first = website.dashboard('2026-11-15')
+            website.CACHE['2026-11-15'] = (0, first)  # Even an old snapshot stays cached.
             second = website.dashboard('2026-11-15')
         self.assertEqual(fetch.call_count, 2)
         self.assertEqual(first, second)

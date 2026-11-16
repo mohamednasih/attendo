@@ -86,19 +86,21 @@ def duration(seconds):
     return f'{value // 3600:02d}:{value // 60 % 60:02d}:{value % 60:02d}'
 
 
-def format_report(data, refresh):
+def format_report(data, refresh=None):
     updated = datetime.fromisoformat(data['attendo_fetched_at']).astimezone(ZoneInfo(data['timezone']))
     lines = [
         f"DAILY LOGGED TIME · {data['date']}",
         f"{data['username']} · {data['timezone']}",
         '',
         f"  Attendo total    {duration(data['attendo_seconds']):>12}",
-        f"  Lock deduction − {duration(data['lock_deduction_seconds']):>12}",
+        f"  Locked time      {duration(data['locked_seconds']):>12}",
         '  ' + '─' * 29,
         f"  Logged time      {duration(data['logged_seconds']):>12} ({data['time_kind']})",
         '',
-        f"Updated {updated.strftime('%H:%M:%S')} · refresh every {refresh:g}s · Ctrl+C to quit",
+        f"Updated {updated.strftime('%H:%M:%S')}" + (f" · refresh every {refresh:g}s · Ctrl+C to quit" if refresh is not None else ""),
     ]
+    if data['time_kind'] == 'recorded':
+        lines += ['', 'Recorded attendance already excludes locks; locked time is shown for reference.']
     if data['warnings']:
         lines += ['', *[f"Note: {warning}" for warning in data['warnings']]]
     return '\n'.join(lines)
@@ -123,7 +125,8 @@ def main():
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''Commands:
-  (no command)   Show the live daily report; Ctrl-C to exit
+  (no command)   Open the website (installed launcher)
+  stats          Print a one-time terminal report
   locks          Display lock periods and total locked time
   notifications  GNOME notification card with Refresh and Show locks actions
   widget         Compact floating time indicator; click for details
@@ -131,6 +134,8 @@ def main():
 
 Examples:
   logged-time
+  logged-time stats
+  logged-time stats --date 2026-11-14
   logged-time --once
   logged-time --date 2026-11-14 --once
   logged-time locks
@@ -151,7 +156,10 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
     parser.add_argument('--state', type=Path, default=DEFAULT_STATE)
     parser.add_argument('--archive', type=Path, default=DEFAULT_ARCHIVE)
     parser.add_argument('--history-dir', type=Path, default=DEFAULT_HISTORY, help='History directory on the shared home mount')
-    args = parser.parse_args()
+    terminal_stats = sys.argv[1:2] == ['stats']
+    args = parser.parse_args(sys.argv[2:] if terminal_stats else None)
+    if terminal_stats:
+        args.once = True
     collector = None
     try:
         if not math.isfinite(args.refresh) or args.refresh < 15:
@@ -215,10 +223,10 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
                                                                 ('Previous period', getattr(profile, 'previous', None)))
                                           if period is not None]
             data['history_source'] = 'attendo_recorded' if data['time_kind'] == 'recorded' else 'shared_home'
-            if args.json or args.once:
+            if args.json or (args.once and not terminal_stats):
                 print(json.dumps(data), flush=True)
             else:
-                text = format_report(data, args.refresh)
+                text = format_report(data, None if terminal_stats else args.refresh)
                 if sys.stdout.isatty() and rendered_lines:
                     print(f'\033[{rendered_lines}F\033[J', end='')
                 print(text, flush=True)

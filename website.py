@@ -32,7 +32,7 @@ def command_json(script, args):
 def dashboard(day, refresh=False):
     with LOCK:
         cached = CACHE.get(day)
-        if not refresh and cached and time.monotonic() - cached[0] < 30:
+        if not refresh and cached:
             return cached[1]
         data = {'date': day, 'report': None, 'locks': None, 'errors': []}
         for key, script, args in (
@@ -83,7 +83,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--port', type=int, default=8080)
+    parser.add_argument('--port', type=int, default=47831)
     args = parser.parse_args()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), partial(Handler, directory=str(ROOT / 'web')))
     from shared_history import HistoryCollector, DEFAULT_HISTORY

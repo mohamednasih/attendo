@@ -33,6 +33,35 @@ class DailyTests(unittest.TestCase):
         self.assertEqual(result['history_source'], 'shared_home')
         self.assertEqual(result['logged_seconds'], 3570)
 
+    def test_stats_prints_once_without_live_refresh(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        fetched = datetime(2026, 11, 15, 12, tzinfo=zone)
+        profile = SimpleNamespace(live_estimate='02:00', login='student', fetched_at=fetched)
+        output = StringIO()
+        with patch('sys.argv', ['logged-time', 'stats']), \
+             patch('daily.HistoryCollector') as collector, \
+             patch('daily.time.time', return_value=fetched.timestamp()), \
+             patch('daily.time.sleep') as sleep, \
+             patch('daily.client.ensure_browser_session'), \
+             patch('daily.client.fetch_profile', return_value=profile) as fetch, \
+             patch('daily.client.attendance_goal', return_value=None), \
+             patch('daily.read_state', return_value=[]), \
+             patch('daily.legacy_history', return_value=[]), \
+             patch('daily.fetch_history', return_value=([(fetched.timestamp()-600, fetched.timestamp())], [])), \
+             redirect_stdout(output):
+            collector.return_value.error = None
+            main()
+        text = output.getvalue()
+        self.assertIn('Logged time', text)
+        self.assertIn('01:50:00', text)
+        self.assertIn('Locked time', text)
+        self.assertNotIn('Lock deduction', text)
+        self.assertIn('00:10:00', text)
+        self.assertNotIn('refresh every', text)
+        fetch.assert_called_once()
+        sleep.assert_not_called()
+        collector.return_value.stop.assert_called_once()
+
     def test_preserves_live_minutes(self):
         day = date(2026, 11, 15)
         profile = SimpleNamespace(live_estimate='07:35')

@@ -62,7 +62,7 @@ entry = '\n'.join([
     'Type=Application',
     'Name=Logged Time',
     'Comment=Start the local attendance dashboard and lock collector',
-    f'Exec={desktop_arg("/usr/bin/env")} {desktop_arg("ATTENDO_BROWSER=" + browser)} {desktop_arg(python)} {desktop_arg(str(Path(project) / "server_control.py"))} start --port {int(os.environ.get("PORT", "8080"))}',
+    f'Exec={desktop_arg("/usr/bin/env")} {desktop_arg("ATTENDO_BROWSER=" + browser)} {desktop_arg(python)} {desktop_arg(str(Path(project) / "server_control.py"))} login --port {int(os.environ.get("PORT", "47831"))}',
     'Terminal=false',
     'X-GNOME-Autostart-enabled=true',
     '',
@@ -82,13 +82,13 @@ def atomic_write(path, text, mode):
         if temporary is not None:
             temporary.unlink(missing_ok=True)
 
-launcher = f'#!/bin/sh\nexec {shlex.quote(python)} {shlex.quote(str(Path(project) / "daily.py"))} "$@"\n'
+launcher = f'#!/bin/sh\nif [ "$#" -eq 0 ]; then\n  exec {shlex.quote(python)} {shlex.quote(str(Path(project) / "server_control.py"))} open --port {int(os.environ.get("PORT", "47831"))}\nfi\nexec {shlex.quote(python)} {shlex.quote(str(Path(project) / "daily.py"))} "$@"\n'
 atomic_write(command, launcher, 0o755)
 atomic_write(target, entry, 0o644)
 print(f'Installed command: {command}')
 if str(bin_dir) not in os.environ.get('PATH', '').split(os.pathsep):
     print(f'Add this directory to your shell PATH: {bin_dir}')
 print(f'Installed autostart: {target}')
-subprocess.run([python, str(Path(project) / 'server_control.py'), 'start', '--port', os.environ.get('PORT', '8080')], check=True)
+subprocess.run([python, str(Path(project) / 'server_control.py'), 'open', '--port', os.environ.get('PORT', '47831')], check=True)
 print(f'Keep the project at {project}. Run logged-time to view your totals.')
 PY

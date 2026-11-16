@@ -1,3 +1,19 @@
+const navigation = [...document.querySelectorAll('.sidebar .nav')];
+function activateSection(hash) {
+  const selected = navigation.find(link => link.hash === hash) || navigation[0];
+  for (const link of navigation) {
+    const active = link === selected;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  }
+}
+for (const link of navigation) {
+  link.addEventListener('click', () => activateSection(link.hash));
+}
+window.addEventListener('hashchange', () => activateSection(window.location.hash));
+activateSection(window.location.hash);
+
 const $ = id => document.getElementById(id);
 const zone = 'Africa/Casablanca';
 const campusToday = () => new Intl.DateTimeFormat('en-CA', {timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
@@ -13,13 +29,13 @@ function updateGoal() {
   const percent = seconds == null ? 0 : Math.min(100, (goal === 0 ? 100 : seconds / (goal * 3600) * 100));
   $('progress').style.width = `${percent}%`;
   $('percent').textContent = seconds == null ? '—' : `${Math.floor(percent)}%`;
-  $('remaining').textContent = goal == null ? 'Attendo recommendation unavailable' : seconds == null ? 'Waiting for your attendance' : seconds >= goal*3600 ? 'Daily goal reached. Well done!' : `${duration(goal*3600-seconds)} to your goal`;
+  $('remaining').textContent = goal == null ? 'Attendo recommendation unavailable' : seconds == null ? 'Waiting for your attendance' : seconds >= goal*3600 ? 'Daily target reached' : `${duration(goal*3600-seconds)} to your goal`;
 }
 function updateDayView() {
   const historical = $('date').value !== today;
   $('logged-card').hidden = historical;
   $('daily-cards').classList.toggle('historical', historical);
-  $('attendo-label').textContent = historical ? 'ATTENDO RECORDED TIME' : 'ATTENDO LIVE ESTIMATE';
+  $('attendo-label').textContent = historical ? 'Recorded attendance' : 'Attendo estimate';
   $('attendo-description').textContent = historical ? 'Recorded attendance for this day' : 'Today’s campus attendance estimate';
   $('deduction').textContent = historical ? 'Observed locked time · no subtraction' : 'Deducted from today’s live estimate';
 }
@@ -56,7 +72,7 @@ async function load(force = false) {
       }
       const cell=document.createElement('td'), tag=document.createElement('span');tag.className='tag';tag.textContent=period.ongoing?'Ongoing':'Completed';cell.append(tag);row.append(cell);$('periods').append(row);
     }
-    if (!periods.length) { const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=4;cell.className='empty';cell.textContent=locks?'No observed locks for this day. A little more room to focus.':'Lock history is unavailable.';row.append(cell);$('periods').append(row); }
+    if (!periods.length) { const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=4;cell.className='empty';cell.textContent=locks?'No lock periods recorded for this day.':'Lock history is unavailable.';row.append(cell);$('periods').append(row); }
     $('warnings').replaceChildren();
     for (const message of new Set([...(r?.warnings || []), ...(locks?.warnings || []), ...(data.errors || [])])) { const li=document.createElement('li');li.textContent=message;$('warnings').append(li); }
     $('status').className = data.errors.length ? 'error' : '';
@@ -108,8 +124,4 @@ $('export').onclick = () => {
   const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
   const link = document.createElement('a'); link.href = url; link.download = `attendance-${period.start}.csv`; link.click(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
 };
-updateGoal();load();setInterval(()=>{
-  const nextToday = campusToday();
-  if (today !== nextToday) { const wasToday = $('date').value === today; today = nextToday; $('date').max = today; if (wasToday) {selectDay(today); return;} }
-  load();
-},60000);
+updateGoal();load(true);

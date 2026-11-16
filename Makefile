@@ -1,18 +1,19 @@
 .DEFAULT_GOAL := update
 
 PYTHON ?= python3
-PORT ?= 8080
+PORT ?= 47831
 ARGS ?=
 
-.PHONY: dependencies update help web run once json locks collect snapshot install uninstall test
+.PHONY: dependencies update help web stats run once json locks collect snapshot install uninstall test
 
 help:
 	@printf '%s\n' \
 	  'Logged time calculator' \
 	  '' \
-	  '  make            Pull updates, install, and restart the background website' \
+	  '  make            Pull updates, install, and restart and open the website' \
+	  '  make stats      Show stats once in the terminal' \
 	  '  make run        Show the live daily report (Ctrl-C to exit)' \
-	  '  make web        Open the localhost website server on port 8080' \
+	  '  make web        Open the localhost website server on port 47831' \
 	  '  make once       Print one daily JSON report' \
 	  '  make json       Print JSON reports every refresh' \
 	  '  make locks      List today’s lock periods and total locked time' \
@@ -25,6 +26,9 @@ help:
 	  'Options: PYTHON=python3 ARGS="--refresh 30"' \
 	  'Example: make once ARGS="--date 2026-11-14"' \
 	  'See README.md for login, shared-home storage, and accuracy details.'
+
+stats:
+	$(PYTHON) daily.py stats $(ARGS)
 
 run:
 	$(PYTHON) daily.py $(ARGS)

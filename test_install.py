@@ -19,7 +19,7 @@ class InstallTests(unittest.TestCase):
             with socket.socket() as reservation:
                 reservation.bind(('127.0.0.1', 0))
                 port = reservation.getsockname()[1]
-            env = dict(os.environ, PORT=str(port), XDG_STATE_HOME=str(home / '.local/state'), HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
+            env = dict(os.environ, BROWSER='/bin/true', PORT=str(port), XDG_STATE_HOME=str(home / '.local/state'), HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
                        BIN_DIR=str(binary), PATH=f'{binary}:/usr/bin:/bin')
             subprocess.run(['bash', str(PROJECT / 'install.sh')], env=env, cwd=home,
                            check=True, capture_output=True)
@@ -34,7 +34,8 @@ class InstallTests(unittest.TestCase):
                 result = subprocess.run(['logged-time', *args], env=env, cwd=home,
                                         check=True, capture_output=True, text=True)
                 self.assertIn('usage:', result.stdout)
-            self.assertTrue((home / '.config/autostart/logged-time.desktop').is_file())
+            self.assertIn('login --port', (home / '.config/autostart/logged-time.desktop').read_text())
+            self.assertIn('server_control.py', (binary / 'logged-time').read_text())
             subprocess.run(['bash', str(PROJECT / 'install.sh'), '--uninstall'],
                            env=env, cwd=home, check=True, capture_output=True)
             self.assertFalse((runtime / 'server.json').exists())

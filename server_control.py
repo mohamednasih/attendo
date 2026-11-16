@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
+import webbrowser
 import subprocess
 import sys
 import time
@@ -25,7 +27,7 @@ def running(record):
         return False
 
 
-def manage(action, port=8080):
+def manage(action, port=47831):
     state = Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'logged-time-web'
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     pidfile = state / 'server.json'
@@ -52,7 +54,14 @@ def manage(action, port=8080):
             return
         if running(record):
             print(f"Web server already running at http://localhost:{record['port']}")
-            return
+            return record['port']
+        with socket.socket() as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind(('127.0.0.1', port))
+            except OSError:
+                probe.bind(('127.0.0.1', 0))
+                port = probe.getsockname()[1]
         with logfile.open('w') as output:
             os.chmod(logfile, 0o600)
             process = subprocess.Popen([sys.executable, str(ROOT / 'website.py'), '--port', str(port)],
@@ -70,7 +79,7 @@ def manage(action, port=8080):
                         if json.load(response).get('pid') == process.pid:
                             print(f'Web server running in background at http://localhost:{port}')
                             print(f'Server log: {logfile}')
-                            return
+                            return port
                 except (OSError, ValueError):
                     pass
                 time.sleep(.1)
@@ -85,14 +94,31 @@ def manage(action, port=8080):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['start', 'stop'])
-    parser.add_argument('--port', type=int, default=8080)
+    parser.add_argument('action', choices=['start', 'stop', 'open', 'login'])
+    parser.add_argument('--port', type=int, default=47831)
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error('port must be between 1 and 65535')
     try:
-        manage(args.action, args.port)
-    except (OSError, RuntimeError) as error:
+        if args.action == 'login':
+            # Bring up the dashboard before any potentially slow network operation.
+            port = manage('start', args.port)
+            webbrowser.open(f'http://localhost:{port}/')
+            before = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
+            try:
+                update = subprocess.run(['git', 'pull', '--ff-only'], cwd=ROOT, timeout=120)
+            except subprocess.TimeoutExpired:
+                print('Update check timed out; keeping the installed version running.', file=sys.stderr)
+                update = subprocess.CompletedProcess([], 1)
+            after = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
+            if update.returncode == 0 and before.stdout != after.stdout:
+                manage('stop')
+                subprocess.run(['make', 'install', f'PORT={args.port}'], cwd=ROOT, check=True)
+            return
+        port = manage('stop' if args.action == 'stop' else 'start', args.port)
+        if args.action in ('open', 'login'):
+            webbrowser.open(f'http://localhost:{port}/')
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f'Error: {error}\n')
 
 
