@@ -11,12 +11,10 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
-import time
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
-CACHE = {}
 LOCK = threading.Lock()
 
 
@@ -31,9 +29,6 @@ def command_json(script, args):
 
 def dashboard(day, refresh=False):
     with LOCK:
-        cached = CACHE.get(day)
-        if not refresh and cached:
-            return cached[1]
         data = {'date': day, 'report': None, 'locks': None, 'errors': []}
         for key, script, args in (
             ('report', 'daily.py', ['--once', '--date', day]),
@@ -43,14 +38,21 @@ def dashboard(day, refresh=False):
                 data[key] = command_json(script, args)
             except (ValueError, OSError, subprocess.TimeoutExpired) as error:
                 data['errors'].append(str(error))
-        if len(CACHE) >= 32:
-            CACHE.pop(next(iter(CACHE)))
-        CACHE[day] = (time.monotonic(), data)
         return data
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
     def do_GET(self):
+        # Always send current assets even if a browser has an older cached copy.
+        for header in ('If-Modified-Since', 'If-None-Match'):
+            if header in self.headers:
+                del self.headers[header]
         url = urlsplit(self.path)
         if url.path == '/api/health':
             body = json.dumps({'pid': os.getpid()}).encode()
@@ -71,7 +73,6 @@ class Handler(SimpleHTTPRequestHandler):
             body = json.dumps(payload, allow_nan=False).encode()
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Cache-Control', 'no-store')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)

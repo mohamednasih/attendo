@@ -38,7 +38,7 @@ logged-time stats
 For a previous day, use `logged-time stats --date 2026-11-14`.
 
 - **Theme:** choose Light, Dark, or System in the header. Your choice is saved in this browser.
-- **Overview:** check logged time, attendance, and locked time.
+- **Overview:** check logged time, Attendo’s live estimate, saved recorded time, and locked time. Recorded time already excludes locks; a missing saved total is shown as unavailable.
 - **Lock history:** see when your screen was locked and for how long.
 - **Attendance:** select a day or export an attendance period as CSV.
 

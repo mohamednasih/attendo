@@ -34,10 +34,10 @@ function updateGoal() {
 function updateDayView() {
   const historical = $('date').value !== today;
   $('logged-card').hidden = historical;
+  $('recorded-card').hidden = historical;
   $('daily-cards').classList.toggle('historical', historical);
   $('attendo-label').textContent = historical ? 'Recorded attendance' : 'Attendo estimate';
   $('attendo-description').textContent = historical ? 'Recorded attendance for this day' : 'Today’s campus attendance estimate';
-  $('deduction').textContent = historical ? 'Observed locked time · no subtraction' : 'Deducted from today’s live estimate';
 }
 async function load(force = false) {
   if (loading) return;
@@ -45,7 +45,7 @@ async function load(force = false) {
   loading = true; $('refresh').disabled = true; $('date').disabled = true;
   $('status').className = ''; $('status').textContent = 'Syncing your attendance…';
   try {
-    const response = await fetch(`/api/dashboard?date=${encodeURIComponent($('date').value)}${force ? '&refresh=1' : ''}`);
+    const response = await fetch(`/api/dashboard?date=${encodeURIComponent($('date').value)}${force ? '&refresh=1' : ''}`, {cache: 'no-store'});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Unable to load attendance.');
     lastReport = data.report;
@@ -60,6 +60,14 @@ async function load(force = false) {
       const m=document.createElement('span');m.textContent='m';$('logged').append(m);
     } else $('logged').textContent = '—';
     $('total').textContent = duration(r?.attendo_seconds);
+    const recorded = r?.attendo_recorded_seconds;
+    $('recorded').textContent = recorded == null ? '—' : `${Math.floor(recorded / 3600)}h`;
+    const latestRecorded = (r?.attendance_periods || []).flatMap(period => period.days)
+      .filter(day => day.date < $('date').value).sort((a, b) => b.date.localeCompare(a.date))[0];
+    $('recorded-description').textContent = recorded != null ? 'Today’s recorded campus attendance'
+      : !r ? 'Connect to Attendo and refresh'
+      : latestRecorded ? `Not yet recorded · latest ${duration(latestRecorded.hours * 3600)} (${latestRecorded.date})`
+      : 'Attendo has not returned a saved total for this day';
     $('locked').textContent = duration(locks?.locked_seconds ?? r?.locked_seconds);
     $('kind').textContent = r?.time_kind === 'recorded' ? 'Recorded' : 'Estimated';
     const periods = locks?.periods || [];

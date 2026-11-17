@@ -10,6 +10,25 @@ from daily import daily_total, day_window, report, main
 
 
 class DailyTests(unittest.TestCase):
+    def test_today_recorded_time_is_separate_from_live_estimate(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        now = datetime(2026, 11, 15, 12, tzinfo=zone)
+        profile = SimpleNamespace(login='student', fetched_at=now, live_estimate='03:00',
+                    current=SimpleNamespace(days=[SimpleNamespace(date='2026-11-15', hours=2.5)]),
+                    previous=None)
+        result = report(profile, now.date(), zone,
+                        [(now.timestamp()-600, now.timestamp())], now.timestamp(), [])
+        self.assertEqual(result['attendo_recorded_seconds'], 9000)
+        self.assertEqual(result['attendo_seconds'], 10800)
+        self.assertEqual(result['logged_seconds'], 10200)
+        profile.today_hours = 2
+        self.assertEqual(report(profile, now.date(), zone, [], now.timestamp(), [])['attendo_recorded_seconds'], 7200)
+        profile.today_hours = None
+        profile.current.days = []
+        self.assertIsNone(report(profile, now.date(), zone, [], now.timestamp(), [])['attendo_recorded_seconds'])
+        profile.current.days = [SimpleNamespace(date='2026-11-15', hours=0)]
+        self.assertEqual(report(profile, now.date(), zone, [], now.timestamp(), [])['attendo_recorded_seconds'], 0)
+
     def test_shared_home_files_are_used_automatically(self):
         profile = SimpleNamespace(live_estimate='01:00', login='student',
                                   fetched_at=datetime(2026, 11, 15, 12, tzinfo=ZoneInfo('Africa/Casablanca')))

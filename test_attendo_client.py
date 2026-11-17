@@ -18,6 +18,14 @@ def page(estimate='07:35', counted=False):
 
 
 class ClientTests(unittest.TestCase):
+    def test_today_recorded_hours_are_separate_from_estimate(self):
+        for value in (2, 0, 2.5, None):
+            data = json.loads(page())
+            data['todayHours'] = value
+            profile = client.parse_profile(json.dumps(data))
+            self.assertEqual(profile.today_hours, value)
+            self.assertEqual(profile.live_estimate, '07:35')
+
     def test_plain_and_streamed_profile_preserve_minutes(self):
         plain = page()
         split = len(plain) // 2

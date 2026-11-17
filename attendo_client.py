@@ -55,6 +55,7 @@ class Snapshot:
     live_estimate: str | None
     fetched_at: datetime
     target_hours: float | None = None
+    today_hours: float | None = None
 
 
 class _ScriptCollector(HTMLParser):
@@ -136,6 +137,8 @@ def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
 
     estimates = re.findall(r'"todayHoursEstimation"\s*:\s*(?:"([0-9]+:[0-9]{2})"|null)', data)
     estimate = estimates[-1] if estimates and estimates[-1] else None
+    recorded = re.findall(r'"todayHours"\s*:\s*([0-9]+(?:\.[0-9]+)?|null)', data)
+    today_hours = float(recorded[-1]) if recorded and recorded[-1] != 'null' else None
 
     logins = re.findall(r'"login"\s*:\s*"([^"\\]+)"', data)
     if not logins:
@@ -178,6 +181,7 @@ def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
     if target is not None and not 0 < target < 10000:
         target = None
     return Snapshot(
+        today_hours=today_hours,
         target_hours=target,
         login=login,
         current=current,

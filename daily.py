@@ -26,20 +26,34 @@ def day_window(day, zone, now):
     return start, min(end, now)
 
 
-def daily_total(profile, day, today):
-    if day == today:
-        match = re.fullmatch(r'(\d+):([0-5]\d)', profile.live_estimate or '')
-        if not match:
-            raise ValueError('Attendo did not provide a live HH:MM total for today; saved hours are not a live substitute')
-        return int(match[1]) * 3600 + int(match[2]) * 60, 'todayHoursEstimation', 60
-    for period in (profile.current, profile.previous):
+def recorded_total(profile, day):
+    fetched = getattr(profile, 'fetched_at', None)
+    today_hours = getattr(profile, 'today_hours', None)
+    if fetched is not None and today_hours is not None and day == fetched.astimezone(ZoneInfo('Africa/Casablanca')).date():
+        value = today_hours * 3600
+        if not math.isfinite(value) or value < 0:
+            raise ValueError('Invalid saved daily total')
+        return value
+    for period in (getattr(profile, 'current', None), getattr(profile, 'previous', None)):
         if period:
             for entry in period.days:
                 if entry.date == day.isoformat():
                     value = entry.hours * 3600
                     if not math.isfinite(value) or value < 0:
                         raise ValueError('Invalid saved daily total')
-                    return value, 'daily.hours', None
+                    return value
+    return None
+
+
+def daily_total(profile, day, today):
+    if day == today:
+        match = re.fullmatch(r'(\d+):([0-5]\d)', profile.live_estimate or '')
+        if not match:
+            raise ValueError('Attendo did not provide a live HH:MM total for today; saved hours are not a live substitute')
+        return int(match[1]) * 3600 + int(match[2]) * 60, 'todayHoursEstimation', 60
+    saved = recorded_total(profile, day)
+    if saved is not None:
+        return saved, 'daily.hours', None
     raise ValueError(f'Attendo did not return a daily total for {day}')
 
 
@@ -66,6 +80,7 @@ def report(profile, day, zone, intervals, now, warnings):
         'date': day.isoformat(), 'timezone': str(zone), 'username': profile.login,
         'attendance_goal': client.attendance_goal(profile),
         'attendo_seconds': total, 'locked_seconds': locked,
+        'attendo_recorded_seconds': recorded_total(profile, day),
         'lock_deduction_seconds': deduction,
         'time_kind': 'estimated' if day == today else 'recorded',
         'logged_seconds': difference if difference >= 0 else None,
@@ -93,6 +108,7 @@ def format_report(data, refresh=None):
         f"{data['username']} · {data['timezone']}",
         '',
         f"  Attendo total    {duration(data['attendo_seconds']):>12}",
+        f"  Attendo recorded {duration(data['attendo_recorded_seconds']):>12}",
         f"  Locked time      {duration(data['locked_seconds']):>12}",
         '  ' + '─' * 29,
         f"  Logged time      {duration(data['logged_seconds']):>12} ({data['time_kind']})",
