@@ -18,6 +18,8 @@ The website opens automatically. Sign in to
 [Attendo](https://attendo.1337.ma/students/login) and [42 Intra](https://profile.intra.42.fr/) in Firefox, Chrome, or Brave,
 then click **Refresh data**.
 
+Chrome can take longer to fetch your session. We recommend signing in with Firefox.
+
 The app starts automatically when you log in and checks for updates. Keep the
 project folder where you installed it.
 
