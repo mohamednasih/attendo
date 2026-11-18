@@ -52,7 +52,7 @@ snapshot:
 	$(PYTHON) shared_history.py collect --once $(ARGS)
 
 update:
-	git pull --ff-only
+	git -c url.https://github.com/mohamednasih/attendo.git.insteadOf=git@github.com:mohamednasih/attendo.git pull --ff-only
 	$(PYTHON) server_control.py stop
 	$(MAKE) install
 

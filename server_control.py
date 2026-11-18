@@ -106,7 +106,11 @@ def main():
             webbrowser.open(f'http://localhost:{port}/')
             before = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
             try:
-                update = subprocess.run(['git', 'pull', '--ff-only'], cwd=ROOT, timeout=120)
+                update = subprocess.run([
+                    'git', '-c',
+                    'url.https://github.com/mohamednasih/attendo.git.insteadOf=git@github.com:mohamednasih/attendo.git',
+                    'pull', '--ff-only',
+                ], cwd=ROOT, timeout=120)
             except subprocess.TimeoutExpired:
                 print('Update check timed out; keeping the installed version running.', file=sys.stderr)
                 update = subprocess.CompletedProcess([], 1)

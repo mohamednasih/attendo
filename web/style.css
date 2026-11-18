@@ -70,8 +70,8 @@ header { height: 64px; border-bottom: 1px solid var(--border); display: flex; ju
 .intro { margin: 30px 0 26px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 h1 { margin: 0 0 5px; font-size: 27px; line-height: 1.3; font-weight: 650; letter-spacing: -.7px; }
 .intro p { margin: 0; color: var(--muted); font-size: 13px; }
-.button, .export-button { padding: 8px 13px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 12px; white-space: nowrap; }
-.button:hover, .export-button:hover { background: var(--hover); }
+.button { padding: 8px 13px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 12px; white-space: nowrap; }
+.button:hover { background: var(--hover); }
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .tabs { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
 .tabs button { padding: 6px 14px; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
@@ -112,20 +112,28 @@ tr:last-child td { border-bottom: 0; }
 .empty { white-space: normal; text-align: center; padding: 35px 20px; color: var(--muted); }
 .tag { color: var(--secondary); font-size: 11px; }
 .attendance { margin-top: 26px; overflow: hidden; }
-.period-tabs { display: flex; gap: 22px; padding: 0 22px; }
-.period-tabs button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 0 0 11px; font-size: 12px; color: var(--muted); }
-.period-tabs .selected { border-color: var(--green); color: var(--ink); }
-.period-summary { padding: 16px 22px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
-.attendance-days { display: flex; overflow-x: auto; margin: 0 22px; border: 1px solid var(--border); border-radius: 3px; }
+.attendance-periods { display: grid; gap: 12px; margin: 0 22px; color: var(--muted); font-size: 12px; }
+.attendance-period { border: 1px solid var(--border); border-radius: 5px; min-width: 0; }
+.attendance-period summary { display: flex; align-items: center; gap: 14px; padding: 16px; cursor: pointer; color: var(--ink); list-style: none; }
+.attendance-period summary::-webkit-details-marker { display: none; }
+.attendance-period summary::after { content: ''; border: solid var(--secondary); border-width: 0 1px 1px 0; width: 6px; height: 6px; flex-shrink: 0; transform: rotate(45deg); }
+.attendance-period[open] > summary::after, .attendance-day[open] > summary::after { transform: rotate(225deg); }
+.attendance-period summary small { display: block; margin-top: 5px; color: var(--muted); }
+.period-totals { margin-left: auto; text-align: right; }
+.attendance-days { margin: 0 16px 12px; }
 .attendance-days:empty { display: none; }
-.attendance-day { flex: 1; min-width: 100px; border: 0; border-right: 1px solid var(--border); border-radius: 0; padding: 13px 8px; background: var(--card); color: var(--ink); text-align: center; }
-.attendance-day:last-child { border-right: 0; }
-.attendance-day:hover, .attendance-day.viewing { background: var(--selected); }
-.attendance-day span { display: block; font-size: 11px; color: var(--secondary); }
-.attendance-day strong { display: block; margin: 10px 0 4px; font: 500 16px ui-monospace, monospace; }
-.attendance-day small { font-size: 10px; color: var(--muted); }
-.day-track { position: relative; width: 20px; height: 65px; margin: 16px auto 0; background: var(--border); }
-.day-track div { position: absolute; bottom: 0; width: 100%; background: var(--secondary); }
+.attendance-day + .attendance-day { border-top: 1px solid var(--border); }
+.attendance-day > summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(4ch, 8ch) minmax(9ch, 18%) 6px; gap: clamp(6px, 2vw, 18px); min-height: 54px; padding: 10px 8px; }
+.attendance-day > summary:hover, .attendance-day > summary[aria-current] { background: var(--selected); }
+.attendance-day > summary strong { font: 600 13px ui-monospace, monospace; }
+.day-count-status { color: var(--muted); font-size: 11px; }
+.day-count-status.counted { color: var(--recorded); }
+.attendance-day-content { display: grid; justify-items: start; gap: 10px; padding: 10px 12px 12px; }
+.inline-day-report { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+.inline-day-totals { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 6px 0 14px; }
+.inline-day-totals dd { margin: 4px 0 0; color: var(--ink); font-weight: 600; }
+.inline-day-report caption { text-align: left; padding-bottom: 8px; color: var(--ink); }
+.inline-day-report th, .inline-day-report td { padding: 8px 10px; }
 .attendance-help { margin: 16px 22px 19px; color: var(--muted); font-size: 11px; }
 .notes { margin: 24px 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
 .notes summary { cursor: pointer; color: var(--secondary); }
@@ -168,9 +176,8 @@ footer { display: flex; justify-content: space-between; gap: 16px; padding: 18px
   .cards .card { padding: 16px; }
   .metric h2 { font-size: 25px; }
   .metric-bottom { font-size: 10px; }
-  .section-heading, .period-summary { padding: 16px; }
-  .period-tabs { padding: 0 16px; }
-  .attendance-days { margin: 0 16px; }
+  .section-heading { padding: 16px; }
+  .attendance-periods, .attendance-days { margin: 0 16px 16px; }
   th, td { padding-left: 16px; padding-right: 16px; }
   footer { flex-direction: column; gap: 4px; }
 }
@@ -192,6 +199,6 @@ select:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
 #recorded { color: var(--recorded); }
 .cards .card[hidden] { display: none; }
 
-.lock-summary { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 18px; }
+.lock-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 18px; }
 .lock-total { color: var(--muted); font-size: 12px; }
 .lock-total strong { margin-left: 7px; font: 500 16px ui-monospace, monospace; color: var(--locked); white-space: nowrap; }
