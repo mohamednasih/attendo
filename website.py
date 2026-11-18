@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Loopback-only web dashboard for the existing logged-time calculator."""
 import argparse
+import configparser
 from datetime import date, datetime
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -15,9 +16,11 @@ from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 import attendo_client
+from desktop_startup import autostart_path, launch_at_login, set_launch_at_login
 
 ROOT = Path(__file__).resolve().parent
 LOCK = threading.Lock()
+SETTINGS_LOCK = threading.Lock()
 
 
 def command_json(script, args):
@@ -50,6 +53,45 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Expires', '0')
         super().end_headers()
 
+    def send_json(self, payload, status=200):
+        body = json.dumps(payload, allow_nan=False).encode()
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        if self.path != '/api/settings':
+            self.send_error(404)
+            return
+        port = self.server.server_port
+        suffix = f':{port}' if port != 80 else ''
+        if self.headers.get('Origin') not in (f'http://localhost{suffix}', f'http://127.0.0.1{suffix}'):
+            self.send_json({'error': 'Open Logged Time on localhost to change desktop settings.'}, 403)
+            return
+        if self.headers.get_content_type() != 'application/json':
+            self.send_json({'error': 'Expected JSON settings.'}, 415)
+            return
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 < length <= 256:
+                raise ValueError('Invalid settings length')
+            payload = json.loads(self.rfile.read(length))
+            enabled = payload.get('launch_at_login') if isinstance(payload, dict) else None
+            if type(enabled) is not bool:
+                raise ValueError('Invalid setting')
+        except ValueError:
+            self.send_json({'error': 'Expected a true or false launch-at-login setting.'}, 400)
+            return
+        try:
+            with SETTINGS_LOCK:
+                set_launch_at_login(autostart_path(), enabled, ROOT, sys.executable, port, preserve_command=True)
+        except (OSError, ValueError, configparser.Error):
+            self.send_json({'error': 'Unable to save the desktop startup setting.'}, 500)
+            return
+        self.send_json({'launch_at_login': enabled})
+
     def do_GET(self):
         # Always send current assets even if a browser has an older cached copy.
         for header in ('If-Modified-Since', 'If-None-Match'):
@@ -63,6 +105,11 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif url.path == '/api/settings':
+            try:
+                self.send_json({'launch_at_login': launch_at_login(autostart_path())})
+            except (OSError, ValueError, configparser.Error):
+                self.send_json({'error': 'Unable to read the desktop startup setting.'}, 500)
         elif url.path == '/api/session':
             try:
                 payload, status = {'active': attendo_client.session_active()}, 200

@@ -21,8 +21,54 @@ function campusToday() {
   const parts = Object.fromEntries(campusDateFormat.formatToParts(new Date()).map(({type, value}) => [type, value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
+const defaultDaySetting = $('default-day');
+try {
+  defaultDaySetting.value = localStorage.getItem('logged-default-day') === 'yesterday' ? 'yesterday' : 'today';
+} catch { /* Keep the default when storage is unavailable. */ }
+defaultDaySetting.addEventListener('change', () => {
+  try { localStorage.setItem('logged-default-day', defaultDaySetting.value); } catch { /* Keep the setting for this visit. */ }
+});
+const startupSetting = $('launch-at-login');
+let savedStartupSetting = null;
+let checkingStartupSetting = false;
+
+async function syncStartupSetting(enabled) {
+  if (checkingStartupSetting) return;
+  checkingStartupSetting = true;
+  startupSetting.disabled = true;
+  const errorMessage = $('startup-error');
+  errorMessage.hidden = true;
+  try {
+    const options = enabled === undefined ? {} : {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({launch_at_login: enabled})
+    };
+    const response = await fetch('/api/settings', options);
+    if (response.status === 404) throw new Error('Restart the local server to manage launch at login.');
+    const data = await response.json();
+    if (!response.ok || typeof data.launch_at_login !== 'boolean') {
+      throw new Error(data.error || 'Unable to read the desktop startup setting.');
+    }
+    savedStartupSetting = data.launch_at_login;
+  } catch (error) {
+    errorMessage.textContent = error.message;
+    errorMessage.hidden = false;
+  } finally {
+    startupSetting.checked = savedStartupSetting === true;
+    startupSetting.disabled = savedStartupSetting === null;
+    checkingStartupSetting = false;
+  }
+}
+
+$('open-settings').addEventListener('click', () => {
+  $('settings').showModal();
+  syncStartupSetting();
+});
+startupSetting.addEventListener('change', () => syncStartupSetting(startupSetting.checked));
+
 let today = campusToday();
-let selectedDay = today;
+let selectedDay = defaultDaySetting.value === 'yesterday' ? previousDay() : today;
 let goal = null;
 let lastReport = null, loading = false;
 let dashboardRequest = 0;
@@ -37,6 +83,8 @@ function updateGoal() {
   $('remaining').textContent = goal == null ? 'Attendo recommendation unavailable' : seconds == null ? 'Waiting for your attendance' : seconds >= goal*3600 ? 'Daily target reached' : `${duration(goal*3600-seconds)} to your goal`;
 }
 function updateDayView() {
+  $('today').setAttribute('aria-pressed', String(selectedDay === today));
+  $('yesterday').setAttribute('aria-pressed', String(selectedDay === previousDay()));
   const historical = selectedDay !== today && selectedDay !== previousDay();
   $('goal-panel').hidden = selectedDay !== today;
   $('logged-card').hidden = historical;
@@ -59,6 +107,7 @@ function showDashboard() {
 }
 
 function showLogin(message) {
+  if ($('settings').open) $('settings').close();
   $('sidebar').hidden = true;
   $('overview').hidden = true;
   $('session-screen').hidden = false;
@@ -182,8 +231,6 @@ function selectDay(viewToday) {
   if (loading) return;
   syncCampusDay();
   selectedDay = viewToday ? today : previousDay();
-  $('today').setAttribute('aria-pressed', String(viewToday));
-  $('yesterday').setAttribute('aria-pressed', String(!viewToday));
   load();
 }
 $('retry-session').addEventListener('click', () => load(true));

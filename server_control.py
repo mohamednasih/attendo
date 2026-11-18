@@ -13,6 +13,8 @@ import sys
 import time
 import urllib.request
 
+from desktop_startup import autostart_path, launch_at_login
+
 ROOT = Path(__file__).resolve().parent
 
 
@@ -27,8 +29,29 @@ def running(record):
         return False
 
 
+def state_directory():
+    return Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'logged-time-web'
+
+
+def wait_for_server():
+    # The desktop autostart service cleans up its cgroup when this launcher exits.
+    state = state_directory()
+    with (state / 'control.lock').open('a') as lock:
+        while True:
+            fcntl.flock(lock, fcntl.LOCK_SH)
+            try:
+                record = json.loads((state / 'server.json').read_text())
+                if not running(record):
+                    return
+            except (FileNotFoundError, ValueError):
+                return
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+            time.sleep(1)
+
+
 def manage(action, port=47831):
-    state = Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'logged-time-web'
+    state = state_directory()
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     pidfile = state / 'server.json'
     logfile = state / 'server.log'
@@ -103,7 +126,8 @@ def main():
         if args.action == 'login':
             # Bring up the dashboard before any potentially slow network operation.
             port = manage('start', args.port)
-            webbrowser.open(f'http://localhost:{port}/')
+            if launch_at_login(autostart_path()):
+                webbrowser.open(f'http://localhost:{port}/')
             before = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
             try:
                 update = subprocess.run([
@@ -117,10 +141,14 @@ def main():
             after = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
             if update.returncode == 0 and before.stdout != after.stdout:
                 manage('stop')
-                subprocess.run(['make', 'install', f'PORT={args.port}'], cwd=ROOT, check=True)
+                subprocess.run(
+                    ['make', 'install', f'PORT={args.port}'], cwd=ROOT, check=True,
+                    env={**os.environ, 'LOGGED_TIME_INSTALL_OPEN_BROWSER': '0'},
+                )
+            wait_for_server()
             return
         port = manage('stop' if args.action == 'stop' else 'start', args.port)
-        if args.action in ('open', 'login'):
+        if args.action == 'open':
             webbrowser.open(f'http://localhost:{port}/')
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f'Error: {error}\n')

@@ -37,7 +37,7 @@ logged-time stats
 
 For a previous day, use `logged-time stats --date 2026-11-14`.
 
-- **Theme:** choose Light, Dark, or System in the header. Your choice is saved in this browser.
+- **Settings:** choose a theme and startup day for this browser, or toggle **Open browser at login** for this workstation. The server always starts in the background when you sign in.
 - **Overview:** check logged time, 42 Intra’s location total, saved recorded time, and locked time. Recorded time already excludes locks; a missing saved total is shown as unavailable.
 - **Lock history:** see when your screen was locked and for how long.
 - **Attendance:** expand a period and a day to see daily attendance and lock history.

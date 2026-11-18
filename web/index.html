@@ -13,7 +13,27 @@
   </div>
 </section>
 <aside class="sidebar" id="sidebar" hidden><a class="brand" href="/">logged<span>.</span></a><div class="space-label">WORKSPACE</div><a class="nav active" href="#overview" aria-current="location"><span>◷</span> Overview</a><a class="nav" href="#history"><span>▤</span> Lock history</a><a class="nav" href="#attendance"><span>▦</span> Attendance</a><a class="repo-support" href="https://github.com/mohamednasih/attendo" target="_blank" rel="noopener noreferrer" aria-label="Star this project on GitHub (opens in a new tab)"><svg class="repo-icon" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 1.72 2.64 1.22 3.28.93.1-.73.4-1.22.71-1.5-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.15A10.8 10.8 0 0 1 12 6.16c.96 0 1.92.13 2.82.38 2.15-1.46 3.1-1.15 3.1-1.15.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.64 5.27-5.15 5.55.4.35.76 1.03.76 2.08v3.11c0 .3.2.65.77.54A11.25 11.25 0 0 0 12 .75Z"/></svg><span>Star on GitHub</span><svg class="repo-star" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.78 5.63L21 9.54l-4.5 4.39 1.06 6.2L12 17.2l-5.56 2.93 1.06-6.2L3 9.54l6.22-.91Z"/></svg></a><div class="sidebar-bottom"><span class="local-dot"></span> Running locally<div>1337 · Attendo</div></div></aside>
-<main id="overview" hidden><header><span class="header-account" id="signed-in-account" hidden></span><div class="header-actions"><label class="theme-label" for="theme">Theme <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><span class="badge">LOCAL</span></div></header>
+<main id="overview" hidden><header><span class="header-account" id="signed-in-account" hidden></span><div class="header-actions"><button class="button" id="open-settings" aria-haspopup="dialog" aria-controls="settings">Settings</button><span class="badge">LOCAL</span></div></header>
+<dialog class="card settings-dialog" id="settings" aria-labelledby="settings-title">
+  <form method="dialog">
+    <h2 id="settings-title">Settings</h2>
+    <label class="settings-field" for="theme">
+      Theme
+      <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+    </label>
+    <label class="settings-field" for="default-day">
+      Day to show on startup
+      <select id="default-day"><option value="today">Today</option><option value="yesterday">Yesterday</option></select>
+    </label>
+    <label class="settings-field" for="launch-at-login">
+      Open browser at login
+      <input id="launch-at-login" type="checkbox" aria-describedby="startup-description" disabled>
+    </label>
+    <p class="settings-description" id="startup-description">Open the dashboard in your browser when you sign in. The server always starts in the background.</p>
+    <p class="settings-error" id="startup-error" role="status" hidden></p>
+    <div class="settings-actions"><button class="button">Done</button></div>
+  </form>
+</dialog>
 <div class="toolbar"><div class="tabs" role="group" aria-label="Attendance day"><button id="today" aria-pressed="true">Today</button><button id="yesterday" aria-pressed="false">Yesterday</button></div><button id="refresh" class="button">Refresh data</button></div>
 <section class="cards" id="daily-cards" aria-label="Daily attendance"><article class="hero card" id="logged-card"><div class="card-top"><h2>Net attendance</h2><span class="pill" id="kind">Estimated</span></div><div class="metric-value" id="logged">--<span>h</span> --<span>m</span></div><p>Total attendance − screen-lock time</p><div id="goal-panel"><div class="goal-line"><span>Attendo daily recommendation</span><strong id="goal-label">—</strong></div><div class="progress"><div id="progress"></div></div><div class="goal-foot"><span id="remaining">Waiting for your attendance</span><span id="percent">—</span></div></div></article>
 <article class="card metric" id="recorded-card"><h2>Attendo recorded</h2><div class="metric-value recorded-value"><span id="recorded">—</span> <span id="recorded-expected" hidden></span></div><p id="recorded-description">Today’s recorded campus attendance</p><div class="metric-bottom">Already excludes screen locks</div></article>

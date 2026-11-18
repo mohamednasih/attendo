@@ -1,6 +1,11 @@
+from email.message import Message
+from io import BytesIO
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import website
 
@@ -28,6 +33,48 @@ class WebsiteTests(unittest.TestCase):
             website.dashboard('2026-11-15')
             website.dashboard('2026-11-15', refresh=True)
         self.assertEqual(fetch.call_count, 4)
+
+    def test_startup_setting_toggles_persistent_desktop_entry(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / 'autostart' / 'logged-time.desktop'
+            handler = website.Handler.__new__(website.Handler)
+            handler.path = '/api/settings'
+            handler.server = SimpleNamespace(server_port=47831)
+            handler.send_json = Mock()
+            handler.headers = Message()
+            with patch.object(website, 'autostart_path', return_value=path):
+                handler.do_GET()
+                handler.send_json.assert_called_with({'launch_at_login': False})
+                entry_command = None
+                for enabled in (True, False):
+                    body = json.dumps({'launch_at_login': enabled}).encode()
+                    handler.headers = Message()
+                    handler.headers['Origin'] = 'http://localhost:47831'
+                    handler.headers['Content-Type'] = 'application/json'
+                    handler.headers['Content-Length'] = str(len(body))
+                    handler.rfile = BytesIO(body)
+                    handler.do_POST()
+                    handler.send_json.assert_called_with({'launch_at_login': enabled})
+                    self.assertEqual(website.launch_at_login(path), enabled)
+                    command = next(line for line in path.read_text().splitlines() if line.startswith('Exec='))
+                    if entry_command is None:
+                        entry_command = command.replace('--port 47831', '--port 47832')
+                        path.write_text(path.read_text().replace(command, entry_command))
+                    else:
+                        self.assertEqual(command, entry_command)
+                self.assertIn('Hidden=false', path.read_text())
+                self.assertIn('X-GNOME-Autostart-enabled=true', path.read_text())
+
+    def test_startup_setting_rejects_cross_origin_updates(self):
+        handler = website.Handler.__new__(website.Handler)
+        handler.path = '/api/settings'
+        handler.server = SimpleNamespace(server_port=47831)
+        handler.headers = {'Origin': 'https://example.org'}
+        handler.send_json = Mock()
+        with patch.object(website, 'set_launch_at_login') as update:
+            handler.do_POST()
+        update.assert_not_called()
+        self.assertEqual(handler.send_json.call_args.args[1], 403)
 
     def test_responses_disable_browser_caching(self):
         with patch.object(website.Handler, 'send_header') as header, \

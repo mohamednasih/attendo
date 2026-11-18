@@ -230,8 +230,20 @@ footer { display: flex; justify-content: space-between; gap: 16px; padding: 18px
 @media (max-width: 480px) {
   .header-actions { column-gap: 8px; }
 }
-.theme-label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
-.theme-label select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 5px 7px; }
+.settings-dialog {
+  width: min(400px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  padding: 22px;
+  color: var(--ink);
+}
+.settings-dialog::backdrop { background: rgb(0 0 0 / .45); }
+.settings-dialog h2 { margin-bottom: 18px; font-size: 18px; }
+.settings-field { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 12px 0; border-top: 1px solid var(--border); }
+.settings-field select { min-width: 112px; font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 5px 7px; }
+.settings-field input { width: 17px; height: 17px; margin: 0; accent-color: var(--logged); }
+.settings-description, .settings-error { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.settings-error { color: var(--error); }
+.settings-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 select:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
 
 #recorded { color: var(--recorded); }

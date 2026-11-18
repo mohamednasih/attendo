@@ -28,10 +28,12 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
-import tempfile
 
 project, config, action, python = sys.argv[1:]
-target = Path(config) / 'autostart/logged-time.desktop'
+sys.path.insert(0, project)
+from desktop_startup import atomic_write, autostart_path, launch_at_login, set_launch_at_login
+
+target = autostart_path(config)
 bin_dir = Path(os.environ.get('BIN_DIR') or Path.home() / '.local/bin').expanduser().absolute()
 command = bin_dir / 'logged-time'
 browser = os.environ.get('ATTENDO_BROWSER', 'auto').strip().lower()
@@ -50,45 +52,15 @@ collector = Path(project) / 'shared_history.py'
 if not collector.is_file():
     sys.exit(f'Collector not found: {collector}')
 
-def desktop_arg(value):
-    if any(c in value for c in '\n\r\x00'):
-        raise ValueError('Installation paths cannot contain newlines or NUL')
-    # Escape Exec arguments, then escape backslashes for the desktop entry.
-    escaped = ''.join('\\' + c if c in '\\"`$' else c for c in value)
-    return '"' + escaped.replace('\\', '\\\\').replace('%', '%%') + '"'
-
-entry = '\n'.join([
-    '[Desktop Entry]',
-    'Type=Application',
-    'Name=Logged Time',
-    'Comment=Start the local attendance dashboard and lock collector',
-    f'Exec={desktop_arg("/usr/bin/env")} {desktop_arg("ATTENDO_BROWSER=" + browser)} {desktop_arg(python)} {desktop_arg(str(Path(project) / "server_control.py"))} login --port {int(os.environ.get("PORT", "47831"))}',
-    'Terminal=false',
-    'X-GNOME-Autostart-enabled=true',
-    '',
-])
-def atomic_write(path, text, mode):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as output:
-            temporary = Path(output.name)
-            output.write(text)
-            output.flush()
-            os.fsync(output.fileno())
-            os.fchmod(output.fileno(), mode)
-        os.replace(temporary, path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-
+enabled = launch_at_login(target) if target.exists() else True
 launcher = f'#!/bin/sh\nif [ "$#" -eq 0 ]; then\n  exec {shlex.quote(python)} {shlex.quote(str(Path(project) / "server_control.py"))} open --port {int(os.environ.get("PORT", "47831"))}\nfi\nexec {shlex.quote(python)} {shlex.quote(str(Path(project) / "daily.py"))} "$@"\n'
 atomic_write(command, launcher, 0o755)
-atomic_write(target, entry, 0o644)
+set_launch_at_login(target, enabled, Path(project), python, int(os.environ.get('PORT', '47831')))
 print(f'Installed command: {command}')
 if str(bin_dir) not in os.environ.get('PATH', '').split(os.pathsep):
     print(f'Add this directory to your shell PATH: {bin_dir}')
 print(f'Installed autostart: {target}')
-subprocess.run([python, str(Path(project) / 'server_control.py'), 'open', '--port', os.environ.get('PORT', '47831')], check=True)
+server_action = 'start' if os.environ.get('LOGGED_TIME_INSTALL_OPEN_BROWSER') == '0' else 'open'
+subprocess.run([python, str(Path(project) / 'server_control.py'), server_action, '--port', os.environ.get('PORT', '47831')], check=True)
 print(f'Keep the project at {project}. Run logged-time to view your totals.')
 PY
