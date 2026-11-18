@@ -15,7 +15,7 @@ make install
 ```
 
 The website opens automatically. Sign in to
-[Attendo](https://attendo.1337.ma/students/login) in Firefox, Chrome, or Brave,
+[Attendo](https://attendo.1337.ma/students/login) and [42 Intra](https://profile.intra.42.fr/) in Firefox, Chrome, or Brave,
 then click **Refresh data**.
 
 The app starts automatically when you log in and checks for updates. Keep the
@@ -38,15 +38,15 @@ logged-time stats
 For a previous day, use `logged-time stats --date 2026-11-14`.
 
 - **Theme:** choose Light, Dark, or System in the header. Your choice is saved in this browser.
-- **Overview:** check logged time, Attendo’s live estimate, saved recorded time, and locked time. Recorded time already excludes locks; a missing saved total is shown as unavailable.
+- **Overview:** check logged time, 42 Intra’s location total, saved recorded time, and locked time. Recorded time already excludes locks; a missing saved total is shown as unavailable.
 - **Lock history:** see when your screen was locked and for how long.
 - **Attendance:** select a day or export an attendance period as CSV.
 
 Refresh using **Refresh data**, your browser's reload button, or `logged-time`.
 The page does not refresh on a timer.
 
-Today's logged time is an estimate that subtracts observed locks from Attendo
-attendance. Lock history starts when the app is running; earlier locks may be
+Logged time for today and yesterday is an estimate that subtracts observed locks from the 42 Intra
+location total. Lock history starts when the app is running; earlier locks may be
 missing.
 
 **Missing lock history?** Log in again at each workstation you previously used

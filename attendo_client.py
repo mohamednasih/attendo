@@ -145,23 +145,27 @@ def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
         raise AttendoError('Could not identify the student in the profile page.')
     login = logins[-1]
 
-    period_re = re.compile(
-        r'"weekStart"\s*:\s*"([^"\\]+)"\s*,\s*'
-        r'"weekEnd"\s*:\s*"([^"\\]+)"\s*,\s*'
-        r'"total"\s*:\s*([0-9.]+)\s*,\s*"daily"\s*:\s*\[(.*?)\]\s*\}',
-        re.DOTALL,
-    )
-    day_re = re.compile(
-        r'"date"\s*:\s*"([^"\\]+)"\s*,\s*'
-        r'"hours"\s*:\s*([0-9.]+)\s*,\s*"counted"\s*:\s*(true|false)'
-    )
+    decoder = json.JSONDecoder()
     periods: list[Period] = []
-    for start, end, total, daily in period_re.findall(data):
-        days = tuple(
-            Day(date, float(hours), counted == "true")
-            for date, hours, counted in day_re.findall(daily)
-        )
-        periods.append(Period(start, end, float(total), days))
+    for match in re.finditer(r'\{\s*"weekStart"\s*:', data):
+        try:
+            period, _ = decoder.raw_decode(data, match.start())
+        except json.JSONDecodeError:
+            continue
+        start, end = period.get('weekStart'), period.get('weekEnd')
+        total, daily = period.get('total'), period.get('daily')
+        if not (isinstance(start, str) and isinstance(end, str)
+                and type(total) in (int, float) and isinstance(daily, list)):
+            continue
+        days = []
+        for day in daily:
+            if not isinstance(day, dict):
+                continue
+            date, counted = day.get('date'), day.get('counted')
+            hours = day.get('hours', day.get('hoursLogged'))
+            if isinstance(date, str) and isinstance(counted, bool) and type(hours) in (int, float):
+                days.append(Day(date, float(hours), counted))
+        periods.append(Period(start, end, float(total), tuple(days)))
     if not periods:
         raise AttendoError("Could not find attendance periods in the profile page; the site may have changed.")
 

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from contextlib import redirect_stdout
 from io import StringIO
@@ -7,9 +7,26 @@ import unittest
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 from daily import daily_total, day_window, report, main
+from intra_client import parse_locations
 
 
 class DailyTests(unittest.TestCase):
+    def test_yesterday_intra_estimate_keeps_attendo_recorded_total(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        fetched = datetime(2026, 11, 15, 12, tzinfo=zone)
+        day = fetched.date() - timedelta(days=1)
+        locations = parse_locations({day.isoformat(): '02:04:30.5'})
+        recorded = SimpleNamespace(date=day.isoformat(), hours=2)
+        profile = SimpleNamespace(login='student', fetched_at=fetched,
+                                  previous=SimpleNamespace(days=[recorded]))
+        start, end = day_window(day, zone, fetched.timestamp())
+        result = report(profile, day, zone, [(start + 60, start + 120), (end, end + 60)],
+                        fetched.timestamp(), [], intra_estimate=(locations[day], fetched))
+        self.assertEqual(result['time_kind'], 'estimated')
+        self.assertEqual(result['attendo_seconds'], 7470.5)
+        self.assertEqual(result['logged_seconds'], 7410.5)
+        self.assertEqual(result['attendo_recorded_seconds'], 7200)
+
     def test_today_recorded_time_is_separate_from_live_estimate(self):
         zone = ZoneInfo('Africa/Casablanca')
         now = datetime(2026, 11, 15, 12, tzinfo=zone)
@@ -86,8 +103,7 @@ class DailyTests(unittest.TestCase):
         profile = SimpleNamespace(live_estimate='07:35')
         self.assertEqual(daily_total(profile, day, day), (27300, 'todayHoursEstimation', 60))
         profile.live_estimate = None
-        with self.assertRaises(ValueError):
-            daily_total(profile, day, day)
+        self.assertEqual(daily_total(profile, day, day), (None, None, None))
 
     def test_locks_crossing_midnight(self):
         zone = ZoneInfo('Africa/Casablanca')
@@ -141,8 +157,8 @@ class DailyTests(unittest.TestCase):
         day = date(2026, 11, 14)
         profile = SimpleNamespace(current=SimpleNamespace(days=[SimpleNamespace(date=str(day), hours=2.5)]), previous=None)
         self.assertEqual(daily_total(profile, day, date(2026, 11, 15))[0], 9000)
-        with self.assertRaises(ValueError):
-            daily_total(profile, date(2026, 11, 13), date(2026, 11, 15))
+        self.assertEqual(daily_total(profile, date(2026, 11, 13), date(2026, 11, 15)),
+                         (None, 'daily.hours', None))
 
 
 if __name__ == '__main__':

@@ -32,12 +32,15 @@ function updateGoal() {
   $('remaining').textContent = goal == null ? 'Attendo recommendation unavailable' : seconds == null ? 'Waiting for your attendance' : seconds >= goal*3600 ? 'Daily target reached' : `${duration(goal*3600-seconds)} to your goal`;
 }
 function updateDayView() {
-  const historical = $('date').value !== today;
+  const selectedDay = $('date').value;
+  const historical = selectedDay !== today && selectedDay !== previousDay();
+  $('goal-panel').hidden = selectedDay !== today;
   $('logged-card').hidden = historical;
   $('recorded-card').hidden = historical;
   $('daily-cards').classList.toggle('historical', historical);
-  $('attendo-label').textContent = historical ? 'Recorded attendance' : 'Attendo estimate';
-  $('attendo-description').textContent = historical ? 'Recorded attendance for this day' : 'Today’s campus attendance estimate';
+  $('attendance-source').textContent = historical ? 'From your Attendo account' : 'From 42 Intra location stats';
+  $('attendo-label').textContent = historical ? 'Recorded attendance' : '42 Intra recorded total';
+  $('attendo-description').textContent = historical ? 'Recorded attendance for this day' : 'Campus location total for this day';
 }
 async function load(force = false) {
   if (loading) return;
@@ -64,7 +67,7 @@ async function load(force = false) {
     $('recorded').textContent = recorded == null ? '—' : `${Math.floor(recorded / 3600)}h`;
     const latestRecorded = (r?.attendance_periods || []).flatMap(period => period.days)
       .filter(day => day.date < $('date').value).sort((a, b) => b.date.localeCompare(a.date))[0];
-    $('recorded-description').textContent = recorded != null ? 'Today’s recorded campus attendance'
+    $('recorded-description').textContent = recorded != null ? 'Recorded campus attendance for this day'
       : !r ? 'Connect to Attendo and refresh'
       : latestRecorded ? `Not yet recorded · latest ${duration(latestRecorded.hours * 3600)} (${latestRecorded.date})`
       : 'Attendo has not returned a saved total for this day';
@@ -84,7 +87,15 @@ async function load(force = false) {
     $('warnings').replaceChildren();
     for (const message of new Set([...(r?.warnings || []), ...(locks?.warnings || []), ...(data.errors || [])])) { const li=document.createElement('li');li.textContent=message;$('warnings').append(li); }
     $('status').className = data.errors.length ? 'error' : '';
-    $('status').textContent = data.errors.length ? 'Attendance unavailable. Sign in to Attendo in Firefox, Chrome, or Brave, then refresh. See “About these numbers” for details.' : `Connected as ${r.username} · ${r.time_kind === 'recorded' ? 'Recorded daily attendance' : 'Estimated attendance, adjusted for observed locks'}`;
+    if (r) {
+      const attendanceStatus = r.time_kind === 'recorded' ? (r.attendo_seconds == null ? 'Recorded total unavailable for this day' : 'Recorded daily attendance')
+        : r.attendo_seconds == null ? '42 Intra recorded total unavailable for this day'
+        : 'Estimated attendance, adjusted for observed locks';
+      const details = data.errors.length || r.attendo_seconds == null ? ' · See “About these numbers” for details.' : '';
+      $('status').textContent = `Connected as ${r.username} · ${attendanceStatus}${details}`;
+    } else {
+      $('status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable.';
+    }
     $('updated').textContent = r ? `Updated ${clock(r.attendo_fetched_at)} · Casablanca` : 'Africa/Casablanca';
     updateGoal();
   } catch(error) { $('status').className='error';$('status').textContent=`${error.message} Previous values may be stale.`; }

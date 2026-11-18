@@ -4,6 +4,7 @@ import argparse
 from datetime import date, datetime, time as day_time, timedelta
 import json
 import math
+import os
 import getpass
 from pathlib import Path
 import re
@@ -13,6 +14,7 @@ import time
 from zoneinfo import ZoneInfo
 
 import attendo_client as client
+import intra_client
 
 from logged_time import DEFAULT_ARCHIVE, DEFAULT_STATE, locked_seconds, read_state
 from shared_history import DEFAULT_HISTORY, HistoryCollector, fetch_history, legacy_history
@@ -49,19 +51,20 @@ def daily_total(profile, day, today):
     if day == today:
         match = re.fullmatch(r'(\d+):([0-5]\d)', profile.live_estimate or '')
         if not match:
-            raise ValueError('Attendo did not provide a live HH:MM total for today; saved hours are not a live substitute')
+            return None, None, None
         return int(match[1]) * 3600 + int(match[2]) * 60, 'todayHoursEstimation', 60
     saved = recorded_total(profile, day)
     if saved is not None:
         return saved, 'daily.hours', None
-    raise ValueError(f'Attendo did not return a daily total for {day}')
+    return None, 'daily.hours', None
 
 
-def report(profile, day, zone, intervals, now, warnings):
+def report(profile, day, zone, intervals, now, warnings, *, intra_estimate=None):
     today = datetime.fromtimestamp(now, zone).date()
     start, end = day_window(day, zone, now)
-    fetched = profile.fetched_at.timestamp()
-    if profile.fetched_at.tzinfo is None or not math.isfinite(fetched) or fetched > now:
+    estimate_time = intra_estimate[1] if intra_estimate is not None else profile.fetched_at
+    fetched = estimate_time.timestamp()
+    if estimate_time.tzinfo is None or not math.isfinite(fetched) or fetched > now:
         raise ValueError('Attendo fetch time must be timezone-aware and cannot be in the future')
     if day == today and datetime.fromtimestamp(fetched, zone).date() != today:
         raise ValueError('No fresh Attendo data for this day')
@@ -70,27 +73,35 @@ def report(profile, day, zone, intervals, now, warnings):
     accounting_end = min(end, fetched)
     if accounting_end < start:
         raise ValueError('Attendo data predates the requested day')
-    total, source, resolution = daily_total(profile, day, today)
+    if intra_estimate is None:
+        total, source, resolution = daily_total(profile, day, today)
+    else:
+        total, source, resolution = intra_estimate[0], '42_intra_locations', None
     locked = locked_seconds(intervals, [(start, accounting_end)], accounting_end)
-    if total > accounting_end - start + (resolution or 0):
+    if intra_estimate is None and total is not None and total > accounting_end - start + (resolution or 0):
         raise ValueError('Attendo total exceeds this local day; check the reporting timezone')
-    deduction = locked if day == today else 0
-    difference = total - deduction
+    estimated = intra_estimate is not None or day == today
+    deduction = (locked if estimated else 0) if total is not None else None
+    difference = total - deduction if total is not None else None
+    if total is None and intra_estimate is None:
+        missing_total = ('Attendo has not provided a live total for today.' if day == today
+                         else f'Attendo did not return a daily total for {day}.')
+        warnings = [*warnings, missing_total]
     return {
         'date': day.isoformat(), 'timezone': str(zone), 'username': profile.login,
         'attendance_goal': client.attendance_goal(profile),
         'attendo_seconds': total, 'locked_seconds': locked,
         'attendo_recorded_seconds': recorded_total(profile, day),
         'lock_deduction_seconds': deduction,
-        'time_kind': 'estimated' if day == today else 'recorded',
-        'logged_seconds': difference if difference >= 0 else None,
+        'time_kind': 'estimated' if estimated else 'recorded',
+        'logged_seconds': difference if difference is not None and difference >= 0 else None,
         'attendo_source': source, 'attendo_resolution_seconds': resolution,
-        'attendo_fetched_at': profile.fetched_at.isoformat(),
+        'attendo_fetched_at': estimate_time.isoformat(),
         'accounted_through': datetime.fromtimestamp(accounting_end, zone).isoformat(),
         'calculated_at': datetime.fromtimestamp(now, zone).isoformat(),
         'history_complete': False,
-        'warnings': warnings + (['Observed lock history may be incomplete; collectors must run on every workstation.'] if day == today else [])
-        + (['Lock duration exceeds the Attendo total; wait for a fresh total or verify its scope.'] if difference < 0 else []),
+        'warnings': warnings + (['Observed lock history may be incomplete; collectors must run on every workstation.'] if estimated else [])
+        + (['Lock duration exceeds the attendance total; wait for a fresh total or verify its scope.'] if difference is not None and difference < 0 else []),
     }
 
 
@@ -124,13 +135,10 @@ def format_report(data, refresh=None):
 
 def main():
     if sys.argv[1:2] == ['dock']:
-        import os
         os.execv('/usr/bin/python3', ['/usr/bin/python3', str(Path(__file__).resolve().with_name('dock_dashboard.py')), *sys.argv[2:]])
     if sys.argv[1:2] == ['notifications']:
-        import os
         os.execv('/usr/bin/python3', ['/usr/bin/python3', str(Path(__file__).resolve().with_name('desktop_notification.py')), *sys.argv[2:]])
     if sys.argv[1:2] == ['widget']:
-        import os
         os.execv('/usr/bin/python3', ['/usr/bin/python3', str(Path(__file__).resolve().with_name('desktop_widget.py')), *sys.argv[2:]])
     if sys.argv[1:2] == ['locks']:
         from shared_history import main as history_main
@@ -164,6 +172,7 @@ Report options are listed above. For lock options, use logged-time locks --help.
 Desktop reports load initially and refresh on interaction.
 Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; locks work offline.''',
     )
+    parser.add_argument('--intra', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--once', action='store_true', help='Fetch and print one report')
     parser.add_argument('--date', type=date.fromisoformat, help='Default: today, rolling at midnight')
     parser.add_argument('--timezone', default='Africa/Casablanca')
@@ -208,6 +217,20 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
                 raise ValueError('No Attendo profile available')
             now = time.time()
             today = datetime.fromtimestamp(now, zone).date()
+            intra_estimate = None
+            day = args.date or today
+            if args.intra and day in (today, today - timedelta(days=1)):
+                login = os.environ.get('INTRA_LOGIN') or profile.login
+                try:
+                    totals, fetched_at = intra_client.fetch_locations(login)
+                    total = totals.get(day)
+                    if total is None:
+                        warnings.append(f'42 Intra returned no location total for {day}.')
+                    intra_estimate = total, fetched_at
+                except ValueError as error:
+                    warnings.append(str(error))
+                    intra_estimate = None, profile.fetched_at
+            now = time.time()
             age = now - profile.fetched_at.timestamp()
             if age > args.refresh + 5:
                 warnings.append('Attendo data is stale; total and lock deductions stop at the last fetch.')
@@ -222,7 +245,7 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
                 continue
             if fetch_day != today and (args.date is None or args.date == today):
                 raise ValueError('No fresh Attendo data for the new day; retry after the connection recovers')
-            start, end = day_window(args.date or today, zone, now)
+            start, end = day_window(day, zone, now)
             shared, file_warnings = fetch_history(args.history_dir, profile.login, start, end)
             intervals.extend(shared)
             warnings.extend(file_warnings)
@@ -232,7 +255,8 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
                 warnings.append(f'Legacy lock archive unavailable: {error}')
             if collector.error:
                 warnings.append(collector.error)
-            data = report(profile, args.date or today, zone, intervals, now, warnings)
+            data = report(profile, day, zone, intervals, now, warnings,
+                          intra_estimate=intra_estimate)
             from dataclasses import asdict
             data['attendance_periods'] = [dict(asdict(period), label=label)
                                           for label, period in (('Current period', getattr(profile, 'current', None)),

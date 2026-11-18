@@ -18,6 +18,20 @@ def page(estimate='07:35', counted=False):
 
 
 class ClientTests(unittest.TestCase):
+    def test_current_period_schema_preserves_recorded_hours(self):
+        data = json.loads(page())
+        data['period'].update(countedDays=1, breakdown={'source': 2.5}, daily=[
+            {'id': 'day', 'date': '2026-11-14', 'hoursLogged': 3,
+             'counted': True, 'sourceHours': 3, 'hours': 2.5},
+            {'id': 'next-day', 'date': '2026-11-15', 'hoursLogged': 1,
+             'counted': False},
+        ])
+        profile = client.parse_profile(json.dumps(data))
+        self.assertEqual(profile.current.days, (
+            client.Day('2026-11-14', 2.5, True),
+            client.Day('2026-11-15', 1, False),
+        ))
+
     def test_today_recorded_hours_are_separate_from_estimate(self):
         for value in (2, 0, 2.5, None):
             data = json.loads(page())
