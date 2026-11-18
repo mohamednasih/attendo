@@ -28,6 +28,14 @@ class AttendoError(RuntimeError):
     pass
 
 
+class AttendoSessionError(AttendoError):
+    pass
+
+
+class AttendoBrowserAccessError(AttendoError):
+    pass
+
+
 @dataclass(frozen=True)
 class Day:
     date: str
@@ -330,9 +338,11 @@ def chromium_student_token(browser):
     except ImportError:
         raise AttendoError('Chrome/Brave cookie support is missing. Run make dependencies.') from None
     loader = getattr(browser_cookie3, browser)
+    readable = False
     for database in files:
         try:
             cookies = loader(cookie_file=str(database), domain_name='attendo.1337.ma')
+            readable = True
             candidates = [cookie for cookie in cookies
                           if cookie.name == 'student_token'
                           and cookie.domain in ('attendo.1337.ma', '.attendo.1337.ma')
@@ -343,15 +353,30 @@ def chromium_student_token(browser):
             # Keyring and database errors vary by desktop. Never include their
             # contents in logs, where decrypted cookies could be exposed.
             continue
+    if not readable:
+        raise AttendoBrowserAccessError(
+            f'Cannot read the Attendo session from {browser.title()}. Unlock your desktop keyring and launch Logged Time from the same desktop session.'
+        )
     return None
+
+
+def browser_student_tokens():
+    access_error = None
+    for browser in _browser_order():
+        try:
+            token = firefox_student_token() if browser == 'firefox' else chromium_student_token(browser)
+        except AttendoBrowserAccessError as error:
+            if access_error is None:
+                access_error = error
+            continue
+        if token:
+            yield token
+    if access_error is not None:
+        raise access_error
 
 
 def browser_student_token():
-    for browser in _browser_order():
-        token = firefox_student_token() if browser == 'firefox' else chromium_student_token(browser)
-        if token:
-            return token
-    return None
+    return next(browser_student_tokens(), None)
 
 
 def _browser_command():
@@ -462,13 +487,21 @@ def ensure_browser_session(timeout: int = 180) -> None:
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         # An expired session can redirect to login; never forward its cookie.
-        raise AttendoError('Attendo redirected the profile request. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.')
+        raise AttendoSessionError('Attendo redirected the profile request. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.')
 
 
-def fetch_profile(timeout: float = 15.0) -> Snapshot:
+def fetch_profile(timeout: float = 15.0, *, cookie: str | None = None) -> Snapshot:
+    global _browser_cookie
+    if cookie is None and _browser_cookie:
+        try:
+            return fetch_profile(timeout, cookie=f"student_token={_browser_cookie}")
+        except AttendoSessionError:
+            profile, token = _fetch_browser_profile(timeout, skip=_browser_cookie)
+            _browser_cookie = token
+            return profile
     request = urllib.request.Request(DEFAULT_URL, headers={
         'Accept': 'text/html,application/xhtml+xml',
-        'Cookie': _cookie_from_environment(),
+        'Cookie': cookie if cookie is not None else _cookie_from_environment(),
         'User-Agent': 'logged-time/1.0',
     })
     try:
@@ -479,8 +512,32 @@ def fetch_profile(timeout: float = 15.0) -> Snapshot:
             raise AttendoError('Attendo profile response is too large.')
     except urllib.error.HTTPError as error:
         if error.code in (401, 403):
-            raise AttendoError('Attendo rejected the session. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.') from error
+            raise AttendoSessionError('Attendo rejected the session. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.') from error
         raise AttendoError(f'Attendo returned HTTP {error.code}.') from error
     except (urllib.error.URLError, OSError) as error:
         raise AttendoError('Could not reach Attendo; check your connection.') from error
     return parse_profile(body.decode('utf-8', errors='replace'))
+
+
+def _fetch_browser_profile(timeout: float, *, skip: str | None = None) -> tuple[Snapshot, str]:
+    tried = {skip}
+    for token in browser_student_tokens():
+        if token in tried:
+            continue
+        tried.add(token)
+        try:
+            return fetch_profile(timeout, cookie=f"student_token={token}"), token
+        except AttendoSessionError:
+            continue
+    raise AttendoSessionError('Attendo rejected the session. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.')
+
+
+def session_active() -> bool:
+    try:
+        if os.environ.get("ATTENDO_COOKIE", "").strip() or os.environ.get("ATTENDO_TOKEN", "").strip():
+            fetch_profile(timeout=8, cookie=_cookie_from_environment())
+        else:
+            _fetch_browser_profile(8)
+    except AttendoSessionError:
+        return False
+    return True

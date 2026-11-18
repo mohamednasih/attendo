@@ -14,6 +14,8 @@ import threading
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
+import attendo_client
+
 ROOT = Path(__file__).resolve().parent
 LOCK = threading.Lock()
 
@@ -57,6 +59,17 @@ class Handler(SimpleHTTPRequestHandler):
         if url.path == '/api/health':
             body = json.dumps({'pid': os.getpid()}).encode()
             self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif url.path == '/api/session':
+            try:
+                payload, status = {'active': attendo_client.session_active()}, 200
+            except (attendo_client.AttendoError, OSError):
+                payload, status = {'error': 'Unable to check the Attendo session.'}, 503
+            body = json.dumps(payload).encode()
+            self.send_response(status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()

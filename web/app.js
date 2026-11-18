@@ -16,11 +16,16 @@ activateSection(window.location.hash);
 
 const $ = id => document.getElementById(id);
 const zone = 'Africa/Casablanca';
-const campusToday = () => new Intl.DateTimeFormat('en-CA', {timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
+const campusDateFormat = new Intl.DateTimeFormat('en-CA', {timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit'});
+function campusToday() {
+  const parts = Object.fromEntries(campusDateFormat.formatToParts(new Date()).map(({type, value}) => [type, value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 let today = campusToday();
+let selectedDay = today;
 let goal = null;
 let lastReport = null, loading = false;
-$('date').value = today; $('date').max = today;
+let dashboardRequest = 0;
 const duration = value => value == null ? '—' : `${Math.floor(value / 3600)}h ${String(Math.floor(value % 3600 / 60)).padStart(2,'0')}m`;
 const clock = value => new Intl.DateTimeFormat('en-GB', {timeZone:zone,hour:'2-digit',minute:'2-digit'}).format(new Date(value));
 function updateGoal() {
@@ -32,7 +37,6 @@ function updateGoal() {
   $('remaining').textContent = goal == null ? 'Attendo recommendation unavailable' : seconds == null ? 'Waiting for your attendance' : seconds >= goal*3600 ? 'Daily target reached' : `${duration(goal*3600-seconds)} to your goal`;
 }
 function updateDayView() {
-  const selectedDay = $('date').value;
   const historical = selectedDay !== today && selectedDay !== previousDay();
   $('goal-panel').hidden = selectedDay !== today;
   $('logged-card').hidden = historical;
@@ -48,17 +52,59 @@ async function fetchDashboard(day, force = false) {
   return data;
 }
 
-async function load(force = false) {
+function showDashboard() {
+  $('session-screen').hidden = true;
+  $('sidebar').hidden = false;
+  $('overview').hidden = false;
+}
+
+function showLogin(message) {
+  $('sidebar').hidden = true;
+  $('overview').hidden = true;
+  $('session-screen').hidden = false;
+  $('session-title').textContent = 'Log in to Attendo';
+  $('session-status').textContent = message || 'Sign in using Firefox, Chrome, or Brave, then return here. The dashboard will open automatically.';
+  $('session-actions').hidden = false;
+}
+
+function requiresLogin(data) {
+  return !data.report && data.errors.some(message =>
+    /No Attendo session found|Cannot read the Attendo session|Attendo (?:redirected the profile request|rejected the session)/i.test(message)
+  );
+}
+
+async function load(force = false, dashboardData = null) {
   if (loading) return;
+  dashboardRequest++;
+  syncCampusDay();
   updateDayView();
-  loading = true; $('refresh').disabled = true; $('date').disabled = true;
+  loading = true;
+  $('refresh').disabled = true;
+  $('refresh').textContent = 'Refreshing…';
+  $('today').disabled = true;
+  $('yesterday').disabled = true;
   $('status').className = ''; $('status').textContent = 'Syncing your attendance…';
+  $('retry-session').disabled = true;
+  $('session-status').textContent = 'Checking your Attendo session…';
   try {
-    const data = await fetchDashboard($('date').value, force);
+    const data = dashboardData ?? await fetchDashboard(selectedDay, force);
+    if (requiresLogin(data)) {
+      const wasPrompted = !$('session-screen').hidden && !$('session-actions').hidden;
+      const accessError = data.errors.find(message => message.includes('Cannot read the Attendo session'));
+      showLogin(accessError?.replace(/^Error: /, '') || (wasPrompted ? 'Attendo still has no usable session. Make sure sign-in completed in Firefox, Chrome, or Brave, and that your desktop keyring is unlocked.' : undefined));
+      return;
+    }
+    if (!data.report && !$('session-screen').hidden && !$('session-actions').hidden) {
+      $('session-status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable. Try checking again.';
+      return;
+    }
+    showDashboard();
     lastReport = data.report;
     goal = lastReport?.attendance_goal?.daily_seconds == null ? null : lastReport.attendance_goal.daily_seconds / 3600;
     renderAttendance(data);
     const r = data.report, locks = data.locks;
+    $('signed-in-account').hidden = !r?.username;
+    $('signed-in-account').textContent = r?.username ? `Signed in as ${r.username}` : '';
     $('logged').replaceChildren();
     if (r?.logged_seconds != null) {
       const seconds = r.logged_seconds;
@@ -68,13 +114,13 @@ async function load(force = false) {
     } else $('logged').textContent = '—';
     $('historical-total').textContent = r?.time_kind === 'recorded' ? duration(r.attendo_seconds) : '—';
     const recorded = r?.attendo_recorded_seconds;
-    const expectedHours = recorded == null && $('date').value === previousDay() && r?.logged_seconds != null
+    const expectedHours = recorded == null && selectedDay === previousDay() && r?.logged_seconds != null
       ? Math.floor((r.logged_seconds + 20 * 60) / 3600) : null;
     $('recorded').textContent = recorded == null ? '—' : `${Math.floor(recorded / 3600)}h`;
     $('recorded-expected').hidden = expectedHours == null;
     $('recorded-expected').textContent = expectedHours == null ? '' : `(expected: ${expectedHours}h)`;
     const latestRecorded = (r?.attendance_periods || []).flatMap(period => period.days)
-      .filter(day => day.date < $('date').value).sort((a, b) => b.date.localeCompare(a.date))[0];
+      .filter(day => day.date < selectedDay).sort((a, b) => b.date.localeCompare(a.date))[0];
     $('recorded-description').hidden = expectedHours != null;
     $('recorded-description').textContent = recorded != null ? 'Recorded campus attendance for this day'
       : !r ? 'Connect to Attendo and refresh'
@@ -94,21 +140,56 @@ async function load(force = false) {
         : r.attendo_seconds == null ? '42 Intra location data unavailable for this day'
         : 'Estimated attendance, adjusted for observed locks';
       const details = data.errors.length || r.attendo_seconds == null ? ' · See “About these numbers” for details.' : '';
-      $('status').textContent = `Connected as ${r.username} · ${attendanceStatus}${details}`;
+      $('status').textContent = `${attendanceStatus}${details}`;
     } else {
       $('status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable.';
     }
     $('updated').textContent = r ? `Updated ${clock(r.attendo_fetched_at)} · Casablanca` : 'Africa/Casablanca';
     updateGoal();
-  } catch(error) { $('status').className='error';$('status').textContent=`${error.message} Previous values may be stale.`; }
-  finally { loading=false;$('refresh').disabled=false;$('date').disabled=false; }
+  } catch (error) {
+    if (!$('session-screen').hidden && !$('session-actions').hidden) {
+      $('session-status').textContent = `${error.message} Try checking again.`;
+    } else {
+      showDashboard();
+      $('status').className = 'error';
+      $('status').textContent = `${error.message} Previous values may be stale.`;
+    }
+  } finally {
+    loading = false;
+    $('refresh').disabled = false;
+    $('refresh').textContent = 'Refresh data';
+    $('today').disabled = false;
+    $('yesterday').disabled = false;
+    $('retry-session').disabled = false;
+  }
 }
-function selectDay(day) { if(loading)return; $('date').value=day; $('today').classList.toggle('selected',day===today);$('yesterday').classList.toggle('selected',day===previousDay());load(); }
-function previousDay(){const d=new Date(`${today}T12:00:00Z`);d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10);}
-$('refresh').addEventListener('click',()=>load(true));
-$('date').addEventListener('change',()=>selectDay($('date').value || today));
-$('today').addEventListener('click',()=>selectDay(today));
-$('yesterday').addEventListener('click',()=>selectDay(previousDay()));
+function previousDay() {
+  const date = new Date(`${today}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function syncCampusDay() {
+  const currentDay = campusToday();
+  if (currentDay === today) return false;
+  const viewingToday = selectedDay === today;
+  today = currentDay;
+  selectedDay = viewingToday ? today : previousDay();
+  return true;
+}
+
+function selectDay(viewToday) {
+  if (loading) return;
+  syncCampusDay();
+  selectedDay = viewToday ? today : previousDay();
+  $('today').setAttribute('aria-pressed', String(viewToday));
+  $('yesterday').setAttribute('aria-pressed', String(!viewToday));
+  load();
+}
+$('retry-session').addEventListener('click', () => load(true));
+$('refresh').addEventListener('click', () => load(true));
+$('today').addEventListener('click', () => selectDay(true));
+$('yesterday').addEventListener('click', () => selectDay(false));
 function renderLockRows(body, locks) {
   const periods = locks?.periods || [];
   body.replaceChildren();
@@ -122,8 +203,29 @@ function renderLockRows(body, locks) {
   if (!periods.length) { const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=4;cell.className='empty';cell.textContent=locks?'No lock periods recorded for this day.':'Lock history is unavailable.';row.append(cell);body.append(row); }
 }
 
+function renderCurrentPeriod(period, target) {
+  $('current-period-progress').hidden = !period;
+  if (!period) return;
+
+  const seconds = period.total * 3600;
+  const hasTarget = target > 0;
+  const reached = hasTarget && seconds >= target;
+  const progress = hasTarget ? Math.min(1, Math.max(0, seconds / target)) : 0;
+  const compactDuration = value => duration(value).replace(/ 00m$/, '');
+  const dateFormat = new Intl.DateTimeFormat('en-US', {month:'short', day:'numeric', timeZone:'UTC'});
+  $('period-gauge').style.setProperty('--period-sweep', `${progress * 270}deg`);
+  $('period-progress-total').textContent = compactDuration(seconds);
+  $('period-progress-target').textContent = hasTarget ? `of ${compactDuration(target)}` : 'Recorded';
+  $('period-progress-count').textContent = `${period.days.filter(day => day.counted).length} / 7 days counted`;
+  $('period-progress-status').textContent = reached ? 'Target reached' : hasTarget ? 'In progress' : 'Target unavailable';
+  $('period-progress-status').classList.toggle('target-reached', reached);
+  $('period-progress-dates').textContent = dateFormat.formatRange(new Date(period.start), new Date(period.end));
+}
+
 function renderAttendance(data) {
   const periods = data.report?.attendance_periods || [];
+  const target = data.report?.attendance_goal?.target_seconds;
+  renderCurrentPeriod(periods.find(period => period.label === 'Current period'), target);
   const list = $('attendance-periods');
   const expanded = new Set([...list.querySelectorAll('.attendance-period[open]')].map(item => item.dataset.period));
   const expandedDays = new Set([...list.querySelectorAll('.attendance-day[open]')].map(item => item.dataset.day));
@@ -152,7 +254,6 @@ function renderAttendance(data) {
     const total = document.createElement('strong');
     total.textContent = duration(period.total * 3600);
     totals.append(total);
-    const target = lastReport?.attendance_goal?.target_seconds;
     if (target != null) {
       const status = document.createElement('small');
       status.textContent = period.total * 3600 >= target ? 'Target reached' : `of ${duration(target)} target`;
@@ -177,7 +278,7 @@ function renderAttendanceDays(period, expandedDays, data) {
     details.open = expandedDays.has(details.dataset.day);
 
     const summary = document.createElement('summary');
-    if (day.date === $('date').value) summary.setAttribute('aria-current', 'date');
+    if (day.date === selectedDay) summary.setAttribute('aria-current', 'date');
     const name = document.createElement('span');
     name.textContent = dateFormat.format(new Date(day.date));
     const amount = document.createElement('strong');
@@ -236,7 +337,10 @@ function renderInlineDay(container, {report, locks, errors}) {
   }
   const history = document.createElement('div');
   history.className = 'table-wrap';
-  history.innerHTML = '<table><caption>Lock history</caption><thead><tr><th>Locked at</th><th>Unlocked at</th><th>Duration</th><th>Status</th></tr></thead><tbody></tbody></table>';
+  history.tabIndex = 0;
+  history.setAttribute('role', 'region');
+  history.setAttribute('aria-label', 'Daily lock periods');
+  history.innerHTML = '<table><caption>Lock history</caption><thead><tr><th scope="col">Locked at</th><th scope="col">Unlocked at</th><th scope="col">Duration</th><th scope="col">Status</th></tr></thead><tbody></tbody></table>';
   renderLockRows(history.querySelector('tbody'), locks);
   container.replaceChildren(totals, history);
   if (errors.length) {
@@ -246,4 +350,47 @@ function renderInlineDay(container, {report, locks, errors}) {
   }
 }
 
+let checkingSession = false;
+let hasSessionEndpoint = true;
+async function checkSession() {
+  if (checkingSession || loading || document.hidden) return;
+  if (syncCampusDay() && !$('overview').hidden) {
+    await load(true);
+    return;
+  }
+  checkingSession = true;
+  const request = dashboardRequest;
+  try {
+    if (hasSessionEndpoint) {
+      const response = await fetch('/api/session', {cache: 'no-store'});
+      if (response.status === 404) {
+        hasSessionEndpoint = false;
+      } else {
+        if (!response.ok) return;
+        const {active} = await response.json();
+        if (request !== dashboardRequest) return;
+        if (active === false && $('session-screen').hidden) showLogin();
+        if (active === true && $('overview').hidden) await load(true);
+        return;
+      }
+    }
+
+    const data = await fetchDashboard(selectedDay, true);
+    if (request !== dashboardRequest) return;
+    if (requiresLogin(data) && $('session-screen').hidden) {
+      await load(true, data);
+    } else if (data.report && $('overview').hidden) {
+      await load(true, data);
+    }
+  } catch {
+    // Keep the current view while the session check is unavailable.
+  } finally {
+    checkingSession = false;
+  }
+}
+
+window.addEventListener('focus', checkSession);
+window.addEventListener('pageshow', checkSession);
+document.addEventListener('visibilitychange', checkSession);
+setInterval(checkSession, 3000);
 updateGoal();load(true);
