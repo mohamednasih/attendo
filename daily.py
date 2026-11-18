@@ -173,6 +173,7 @@ Desktop reports load initially and refresh on interaction.
 Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; locks work offline.''',
     )
     parser.add_argument('--intra', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--no-collect', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--once', action='store_true', help='Fetch and print one report')
     parser.add_argument('--date', type=date.fromisoformat, help='Default: today, rolling at midnight')
     parser.add_argument('--timezone', default='Africa/Casablanca')
@@ -190,8 +191,9 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
         if not math.isfinite(args.refresh) or args.refresh < 15:
             raise ValueError('--refresh must be at least 15 seconds')
         zone = ZoneInfo(args.timezone)
-        collector = HistoryCollector(args.history_dir, getpass.getuser(), args.state)
-        collector.start()
+        if not args.no_collect:
+            collector = HistoryCollector(args.history_dir, getpass.getuser(), args.state)
+            collector.start()
         client.ensure_browser_session()
         profile = None
         next_fetch = 0
@@ -253,7 +255,7 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
                 intervals.extend(legacy_history(args.archive, profile.login))
             except (OSError, ValueError, sqlite3.Error) as error:
                 warnings.append(f'Legacy lock archive unavailable: {error}')
-            if collector.error:
+            if collector is not None and collector.error:
                 warnings.append(collector.error)
             data = report(profile, day, zone, intervals, now, warnings,
                           intra_estimate=intra_estimate)

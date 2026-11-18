@@ -33,7 +33,7 @@ def dashboard(day, refresh=False):
     with LOCK:
         data = {'date': day, 'report': None, 'locks': None, 'errors': []}
         for key, script, args in (
-            ('report', 'daily.py', ['--intra', '--once', '--date', day]),
+            ('report', 'daily.py', ['--intra', '--once', '--no-collect', '--date', day]),
             ('locks', 'shared_history.py', ['list', '--json', '--date', day]),
         ):
             try:

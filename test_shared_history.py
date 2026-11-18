@@ -18,48 +18,49 @@ class SharedTests(unittest.TestCase):
         self.addCleanup(self.folder.cleanup)
 
     def test_multiple_machines_and_overlapping_locks(self):
-        a = HistoryWriter(self.directory, 'student', 'machine-a')
-        b = HistoryWriter(self.directory, 'student', 'machine-b')
+        a = HistoryWriter(self.directory, 'student')
+        b = HistoryWriter(self.directory, 'student')
         a.observe([(10, 30)], 40)
         b.observe([(20, 40)], 50)
         rows, warnings = fetch_history(self.directory, 'student', 0, 100)
         self.assertEqual(warnings, [])
         self.assertEqual(locked_seconds(rows, [(0, 100)], 100), 30)
 
-    def test_collectors_share_exact_intervals_without_losing_independent_observations(self):
-        a = HistoryWriter(self.directory, 'student', 'machine-a')
-        b = HistoryWriter(self.directory, 'student', 'machine-a')
+    def test_collectors_share_one_tracked_row_per_lock(self):
+        a = HistoryWriter(self.directory, 'student')
+        b = HistoryWriter(self.directory, 'student')
         a.observe([(10, 20)], 30)
         b.observe([(10, 20)], 30)
-        self.assertNotEqual(a.source, b.source)
         self.assertEqual([path.name for path in self.directory.iterdir()], ['locks.sqlite3'])
         rows, _ = fetch_history(self.directory, 'student', 0, 100)
         self.assertEqual(rows, [(10, 20)])
         self.assertEqual(locked_seconds(rows, [(0, 100)], 100), 10)
         a.observe([(10, 25)], 30)
-        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 20), (10, 25)], []))
-        b.observe([(10, 25)], 30)
+        b.observe([(10, None)], 40)
         self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 25)], []))
 
     def test_restart_preserves_old_history_and_bounds_open_lock(self):
-        a = HistoryWriter(self.directory, 'student', 'machine-a')
+        a = HistoryWriter(self.directory, 'student')
         a.observe([(10, None)], 20)
         a.observe([], 50)
-        b = HistoryWriter(self.directory, 'student', 'machine-b')
+        b = HistoryWriter(self.directory, 'student')
         b.observe([(60, 70)], 80)
         rows, _ = fetch_history(self.directory, 'student', 0, 200)
         self.assertEqual(sorted(rows), [(10, 20), (60, 70)])
 
     def test_open_lock_updates_then_closes(self):
-        a = HistoryWriter(self.directory, 'student', 'machine-a')
+        a = HistoryWriter(self.directory, 'student')
         a.observe([(10, None)], 20)
-        a.observe([(10, None)], 25)
-        a.observe([(10, 27)], 30)
-        rows, _ = fetch_history(self.directory, 'student', 0, 100)
-        self.assertEqual(rows, [(10, 27)])
+        a = HistoryWriter(self.directory, 'student')
+        a.observe([(10, None)], 29)
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 20)], []))
+        a.observe([(10, None)], 30)
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 30)], []))
+        a.observe([(10, 29)], 31)
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 29)], []))
 
     def test_failed_write_preserves_previous_observation(self):
-        a = HistoryWriter(self.directory, 'student', 'machine-a')
+        a = HistoryWriter(self.directory, 'student')
         a.observe([(10, None)], 20)
         with patch('shared_history.history_database', side_effect=sqlite3.OperationalError('database unavailable')):
             with self.assertRaises(sqlite3.OperationalError):
@@ -71,9 +72,10 @@ class SharedTests(unittest.TestCase):
         self.assertEqual(rows, [(10, 40)])
 
     def test_corrupt_file_warns_without_losing_other_machines(self):
-        a = HistoryWriter(self.directory, 'student', 'machine-a')
-        a.observe([(10, 20)], 30)
+        self.directory.mkdir()
         (self.directory / 'broken.json').write_text('{')
+        a = HistoryWriter(self.directory, 'student')
+        a.observe([(10, 20)], 30)
         (self.directory / 'interrupted.tmp').write_text('{')
         self.assertEqual(migrate_history(self.directory, delete_imported=True)[:2], (0, 0))
         rows, warnings = fetch_history(self.directory, 'student', 0, 100)
@@ -82,7 +84,7 @@ class SharedTests(unittest.TestCase):
         self.assertIn('broken.json', warnings[0])
 
     def test_other_users_and_invalid_times(self):
-        a = HistoryWriter(self.directory, 'other', 'machine-a')
+        a = HistoryWriter(self.directory, 'other')
         a.observe([(10, 20)], 30)
         self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([], []))
         with self.assertRaises(ValueError):
@@ -137,8 +139,26 @@ class SharedTests(unittest.TestCase):
         self.assertEqual(fetch_history(self.directory, 'other', 0, 100), ([(10, 20)], []))
         with sqlite3.connect(path) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM intervals').fetchone(), (2,))
-            self.assertEqual(db.execute('SELECT count(*) FROM observations').fetchone(), (3,))
-            self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
+            self.assertEqual(db.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall(),
+                             [('intervals',)])
+
+    def test_schema_upgrade_removes_observation_tables_and_preserves_intervals(self):
+        self.directory.mkdir()
+        path = self.directory / 'locks.sqlite3'
+        with sqlite3.connect(path) as db:
+            db.executescript("""
+                CREATE TABLE intervals (id INTEGER PRIMARY KEY, username TEXT, start REAL, end REAL);
+                CREATE TABLE observations (source TEXT, interval_id INTEGER REFERENCES intervals(id));
+                CREATE TABLE import_errors (warning TEXT);
+                INSERT INTO intervals VALUES (1, 'student', 10, 20), (2, 'student', 10, 22);
+                INSERT INTO observations VALUES ('a', 1), ('b', 1), ('c', 2);
+                PRAGMA user_version = 4;
+            """)
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 20), (10, 22)], []))
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall(),
+                             [('intervals',)])
+            self.assertEqual(db.execute('PRAGMA integrity_check').fetchall(), [('ok',)])
 
     def test_old_archive_is_read_without_creation(self):
         path = Path(self.folder.name) / 'old.sqlite3'
@@ -148,8 +168,7 @@ class SharedTests(unittest.TestCase):
         self.assertEqual(legacy_history(path, 'student'), [(10, 20)])
 
     def test_collector_records_failure_and_recovers(self):
-        with patch('shared_history.source_id', return_value='machine-a'):
-            collector = HistoryCollector(self.directory, 'student')
+        collector = HistoryCollector(self.directory, 'student')
         with patch('shared_history.read_state', side_effect=OSError('not mounted')):
             collector.observe()
         self.assertIn('not mounted', collector.error)
@@ -164,7 +183,7 @@ class SharedTests(unittest.TestCase):
         day = date(2026, 11, 15)
         start = datetime(2026, 11, 15, tzinfo=zone).timestamp()
         now = start + 3600
-        writer = HistoryWriter(self.directory, 'student', 'machine-a')
+        writer = HistoryWriter(self.directory, 'student')
         writer.observe([(start-60, start+60), (start+30, start+90)], now)
         with patch('shared_history.read_state', return_value=[(now-30, None)]), \
              patch('shared_history.legacy_history', return_value=[(start+60, start+120)]):
@@ -180,7 +199,7 @@ class SharedTests(unittest.TestCase):
         zone = ZoneInfo('Africa/Casablanca')
         day = date(2026, 11, 15)
         start = datetime(2026, 11, 15, tzinfo=zone).timestamp()
-        writer = HistoryWriter(self.directory, 'student', 'machine-a')
+        writer = HistoryWriter(self.directory, 'student')
         writer.observe([(start+10, start+20)], start+60)
         with patch('shared_history.read_state', side_effect=OSError('unavailable')), \
              patch('shared_history.legacy_history', return_value=[]):

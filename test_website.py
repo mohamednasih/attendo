@@ -20,6 +20,7 @@ class WebsiteTests(unittest.TestCase):
             first = website.dashboard('2026-11-15')
             second = website.dashboard('2026-11-15')
         self.assertEqual(fetch.call_count, 4)
+        fetch.assert_any_call('daily.py', ['--intra', '--once', '--no-collect', '--date', '2026-11-15'])
         self.assertEqual(first, second)
 
     def test_manual_refresh_bypasses_cache(self):
