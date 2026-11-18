@@ -98,6 +98,7 @@ input[type=date] { margin-left: 7px; padding: 5px 8px; border: 1px solid var(--b
 .metric { display: flex; flex-direction: column; }
 .eyebrow { color: var(--secondary); font-size: 12px; font-weight: 500; }
 .metric h2 { font: 500 34px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: -1px; margin: 17px 0 0; }
+.recorded-value #recorded-expected { color: var(--muted); font: 500 12px/1.4 system-ui, sans-serif; letter-spacing: 0; white-space: nowrap; }
 .metric-bottom { display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 12px; margin-top: auto; color: var(--muted); font-size: 11px; }
 .lower { margin-top: 26px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 19px 22px; }

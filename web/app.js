@@ -64,9 +64,14 @@ async function load(force = false) {
     } else $('logged').textContent = '—';
     $('total').textContent = duration(r?.attendo_seconds);
     const recorded = r?.attendo_recorded_seconds;
+    const expectedHours = recorded == null && $('date').value === previousDay() && r?.logged_seconds != null
+      ? Math.floor((r.logged_seconds + 20 * 60) / 3600) : null;
     $('recorded').textContent = recorded == null ? '—' : `${Math.floor(recorded / 3600)}h`;
+    $('recorded-expected').hidden = expectedHours == null;
+    $('recorded-expected').textContent = expectedHours == null ? '' : `(expected: ${expectedHours}h)`;
     const latestRecorded = (r?.attendance_periods || []).flatMap(period => period.days)
       .filter(day => day.date < $('date').value).sort((a, b) => b.date.localeCompare(a.date))[0];
+    $('recorded-description').hidden = expectedHours != null;
     $('recorded-description').textContent = recorded != null ? 'Recorded campus attendance for this day'
       : !r ? 'Connect to Attendo and refresh'
       : latestRecorded ? `Not yet recorded · latest ${duration(latestRecorded.hours * 3600)} (${latestRecorded.date})`
