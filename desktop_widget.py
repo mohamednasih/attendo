@@ -26,7 +26,7 @@ class Widget(Gtk.Application):
         if self.window:
             self.window.present()
             return
-        self.window = Gtk.ApplicationWindow(application=self, title='Logged Time')
+        self.window = Gtk.ApplicationWindow(application=self, title='xattendo')
         self.window.set_resizable(False)
         self.window.set_keep_above(True)
         self.window.set_decorated(False)
@@ -54,7 +54,7 @@ class Widget(Gtk.Application):
         self.window.add(box)
         handle = Gtk.EventBox()
         handle.add(Gtk.Image.new_from_icon_name('alarm-symbolic', Gtk.IconSize.MENU))
-        handle.set_tooltip_text('Drag to move Logged Time')
+        handle.set_tooltip_text('Drag to move xattendo')
         handle.connect('button-press-event', self.move)
         box.pack_start(handle, False, False, 4)
         self.button = Gtk.ToggleButton()
@@ -65,7 +65,7 @@ class Widget(Gtk.Application):
         self.button.set_tooltip_text('Logged time · click for details')
         box.pack_start(self.button, True, True, 0)
         popover = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-        popover.set_title('Logged Time Details')
+        popover.set_title('xattendo Details')
         popover.set_decorated(False)
         popover.set_resizable(False)
         popover.set_default_size(380, 340)

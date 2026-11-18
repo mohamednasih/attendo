@@ -1,4 +1,4 @@
-"""Manage Logged Time's user-level desktop login entry."""
+"""Manage xattendo's user-level desktop login entry."""
 import configparser
 import os
 from pathlib import Path
@@ -69,7 +69,7 @@ def set_launch_at_login(path, enabled, project, python, port, *, preserve_comman
     entry = '\n'.join([
         '[Desktop Entry]',
         'Type=Application',
-        'Name=Logged Time',
+        'Name=xattendo',
         'Comment=Start the local attendance dashboard and lock collector',
         f'Exec={command}',
         'Terminal=false',

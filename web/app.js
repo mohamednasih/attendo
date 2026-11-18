@@ -193,7 +193,6 @@ async function load(force = false, dashboardData = null) {
     } else {
       $('status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable.';
     }
-    $('updated').textContent = r ? `Updated ${clock(r.attendo_fetched_at)} · Casablanca` : 'Africa/Casablanca';
     updateGoal();
   } catch (error) {
     if (!$('session-screen').hidden && !$('session-actions').hidden) {

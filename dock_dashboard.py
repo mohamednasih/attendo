@@ -17,10 +17,10 @@ class Dashboard(Widget):
             self.window.present()
             self.refresh()
             return
-        self.window = Gtk.ApplicationWindow(application=self, title='Logged Time')
+        self.window = Gtk.ApplicationWindow(application=self, title='xattendo')
         self.window.set_default_size(460, 560)
         self.window.set_icon_name('appointment-soon')
-        header = Gtk.HeaderBar(title='Logged Time', subtitle='Today’s work and lock history')
+        header = Gtk.HeaderBar(title='xattendo', subtitle='Today’s work and lock history')
         header.set_show_close_button(True)
         refresh = Gtk.Button.new_from_icon_name('view-refresh-symbolic', Gtk.IconSize.BUTTON)
         refresh.set_tooltip_text('Refresh totals and locks')
@@ -66,7 +66,7 @@ class Dashboard(Widget):
 
     def update_title(self, *_):
         if self.window:
-            self.window.set_title(f'{self.clock.get_text()} · Logged Time')
+            self.window.set_title(f'{self.clock.get_text()} · xattendo')
 
     def stop(self, *_):
         self.window = None

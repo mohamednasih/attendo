@@ -24,7 +24,7 @@ class NotificationApp(Gio.Application):
         self.timeouts = set()
         self.report = 'Loading Attendo…'
         self.locks = 'Loading lock history…'
-        self.title = 'Logged Time'
+        self.title = 'xattendo'
         self.show_locks = False
         self.stopping = False
 
@@ -33,7 +33,7 @@ class NotificationApp(Gio.Application):
             self.refresh()
             return
         self.hold()
-        Notify.init('Logged Time')
+        Notify.init('xattendo')
         self.card = Notify.Notification.new(self.title, self.report, 'appointment-soon-symbolic')
         self.card.set_hint('resident', GLib.Variant('b', True))
         self.card.set_hint('transient', GLib.Variant('b', False))
@@ -97,14 +97,14 @@ class NotificationApp(Gio.Application):
                 if not self.stopping:
                     setattr(self, kind, str(error))
                     if kind == 'report':
-                        self.title = 'Logged Time · unavailable'
+                        self.title = 'xattendo · unavailable'
             self.render()
 
         process.communicate_utf8_async(None, None, finished)
 
     def refresh(self):
         def report(data):
-            self.title = f"Logged Time · {duration(data['logged_seconds'])}"
+            self.title = f"xattendo · {duration(data['logged_seconds'])}"
             self.report = '\n'.join([
                 f"{data['date']} · {data['username']} · {data['time_kind']}",
                 f"Attendo: {duration(data['attendo_seconds'])}",

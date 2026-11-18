@@ -355,7 +355,7 @@ def chromium_student_token(browser):
             continue
     if not readable:
         raise AttendoBrowserAccessError(
-            f'Cannot read the Attendo session from {browser.title()}. Unlock your desktop keyring and launch Logged Time from the same desktop session.'
+            f'Cannot read the Attendo session from {browser.title()}. Unlock your desktop keyring and launch xattendo from the same desktop session.'
         )
     return None
 

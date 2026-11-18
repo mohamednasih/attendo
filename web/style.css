@@ -180,7 +180,7 @@ tr:last-child td { border-bottom: 0; }
 .notes { margin: 24px 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
 .notes summary { cursor: pointer; color: var(--secondary); }
 .notes a { color: var(--green); }
-footer { display: flex; justify-content: space-between; gap: 16px; padding: 18px 0 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+footer { padding: 18px 0 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .session-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
 .session-card { width: min(100%, 440px); padding: 24px; }
 .session-card h1 { margin: 0; font-size: 24px; }
@@ -226,7 +226,6 @@ footer { display: flex; justify-content: space-between; gap: 16px; padding: 18px
   .attendance-period > summary { gap: 9px; padding: 12px; }
   .attendance-days { margin-inline: 8px; }
   .attendance-day > summary { gap: 7px; }
-  footer { flex-direction: column; gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 

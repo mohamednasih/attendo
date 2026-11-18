@@ -68,7 +68,7 @@ class Handler(SimpleHTTPRequestHandler):
         port = self.server.server_port
         suffix = f':{port}' if port != 80 else ''
         if self.headers.get('Origin') not in (f'http://localhost{suffix}', f'http://127.0.0.1{suffix}'):
-            self.send_json({'error': 'Open Logged Time on localhost to change desktop settings.'}, 403)
+            self.send_json({'error': 'Open xattendo on localhost to change desktop settings.'}, 403)
             return
         if self.headers.get_content_type() != 'application/json':
             self.send_json({'error': 'Expected JSON settings.'}, 415)
@@ -152,7 +152,7 @@ def main():
     collector = HistoryCollector(DEFAULT_HISTORY, getpass.getuser())
     collector.start()
     signal.signal(signal.SIGTERM, lambda *_: threading.Thread(target=server.shutdown, daemon=True).start())
-    print(f'Logged Time is running at http://localhost:{args.port}', flush=True)
+    print(f'xattendo is running at http://localhost:{args.port}', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

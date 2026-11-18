@@ -18,7 +18,7 @@ class LoggedTime {
         this._active = true;
         this._processes = new Set();
         this._pending = new Set();
-        this._button = new PanelMenu.Button(0.0, 'Logged Time');
+        this._button = new PanelMenu.Button(0.0, 'xattendo');
         this._label = new St.Label({text: 'Logged: …', y_align: imports.gi.Clutter.ActorAlign.CENTER});
         this._button.add_child(this._label);
         Main.panel.addToStatusArea(Me.metadata.uuid, this._button);
