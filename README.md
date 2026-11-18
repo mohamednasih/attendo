@@ -53,6 +53,21 @@ missing.
 and let the app run there to collect any lock records still available on that
 station. Records that are no longer available cannot be recovered.
 
+## Lock-history storage
+
+Workstations share the SQLite database at
+`~/.local/state/logged-time/history/locks.sqlite3`. Stop older JSON-writing
+collectors before deploying the update. The `make` update and desktop-login
+updates both import existing JSON history, verify the database, and remove the
+original JSON files after the import commits. Updated collectors write directly
+to SQLite.
+
+If an import fails verification, the originals stay in place and the app
+reports the error. To rerun the migration and cleanup immediately, use
+`make migrate-history`. To import without removing files during that command,
+run `python3 shared_history.py migrate` instead.
+The older archive at `~/.local/state/logged-time/locks.sqlite3` is read separately.
+
 ## Update or uninstall
 
 From the project folder, update and reopen the app:

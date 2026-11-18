@@ -2,12 +2,13 @@ import json
 from datetime import date, datetime
 from pathlib import Path
 import tempfile
+import sqlite3
 import unittest
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from logged_time import locked_seconds, snapshot
-from shared_history import HistoryWriter, HistoryCollector, fetch_history, legacy_history, list_locks, format_locks
+from shared_history import HistoryWriter, HistoryCollector, fetch_history, migrate_history, legacy_history, list_locks, format_locks
 
 
 class SharedTests(unittest.TestCase):
@@ -25,15 +26,20 @@ class SharedTests(unittest.TestCase):
         self.assertEqual(warnings, [])
         self.assertEqual(locked_seconds(rows, [(0, 100)], 100), 30)
 
-    def test_collectors_on_same_machine_have_independent_files(self):
+    def test_collectors_share_exact_intervals_without_losing_independent_observations(self):
         a = HistoryWriter(self.directory, 'student', 'machine-a')
         b = HistoryWriter(self.directory, 'student', 'machine-a')
         a.observe([(10, 20)], 30)
         b.observe([(10, 20)], 30)
-        self.assertNotEqual(a.path, b.path)
+        self.assertNotEqual(a.source, b.source)
+        self.assertEqual([path.name for path in self.directory.iterdir()], ['locks.sqlite3'])
         rows, _ = fetch_history(self.directory, 'student', 0, 100)
-        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows, [(10, 20)])
         self.assertEqual(locked_seconds(rows, [(0, 100)], 100), 10)
+        a.observe([(10, 25)], 30)
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 20), (10, 25)], []))
+        b.observe([(10, 25)], 30)
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 25)], []))
 
     def test_restart_preserves_old_history_and_bounds_open_lock(self):
         a = HistoryWriter(self.directory, 'student', 'machine-a')
@@ -52,15 +58,14 @@ class SharedTests(unittest.TestCase):
         rows, _ = fetch_history(self.directory, 'student', 0, 100)
         self.assertEqual(rows, [(10, 27)])
 
-    def test_failed_atomic_replace_preserves_previous_file(self):
+    def test_failed_write_preserves_previous_observation(self):
         a = HistoryWriter(self.directory, 'student', 'machine-a')
         a.observe([(10, None)], 20)
-        with patch('shared_history.os.replace', side_effect=OSError('mount unavailable')):
-            with self.assertRaises(OSError):
+        with patch('shared_history.history_database', side_effect=sqlite3.OperationalError('database unavailable')):
+            with self.assertRaises(sqlite3.OperationalError):
                 a.observe([(10, None)], 30)
         rows, _ = fetch_history(self.directory, 'student', 0, 100)
         self.assertEqual(rows, [(10, 20)])
-        self.assertEqual(list(self.directory.glob('*.tmp')), [])
         a.observe([(10, None)], 40)
         rows, _ = fetch_history(self.directory, 'student', 0, 100)
         self.assertEqual(rows, [(10, 40)])
@@ -70,6 +75,7 @@ class SharedTests(unittest.TestCase):
         a.observe([(10, 20)], 30)
         (self.directory / 'broken.json').write_text('{')
         (self.directory / 'interrupted.tmp').write_text('{')
+        self.assertEqual(migrate_history(self.directory, delete_imported=True)[:2], (0, 0))
         rows, warnings = fetch_history(self.directory, 'student', 0, 100)
         self.assertEqual(rows, [(10, 20)])
         self.assertEqual(len(warnings), 1)
@@ -83,6 +89,56 @@ class SharedTests(unittest.TestCase):
             a.observe([(10, 40)], 30)
         with self.assertRaises(ValueError):
             a.observe([(float('nan'), None)], 30)
+
+    def test_sqlite_imports_existing_history_before_normal_reads(self):
+        self.directory.mkdir()
+        original = self.directory / 'old.json'
+        original.write_text(json.dumps({
+            'version': 1, 'username': 'student', 'observed': 80,
+            'intervals': [(10, 20), (50, 60)],
+        }))
+        duplicate = self.directory / 'duplicate.json'
+        duplicate.write_bytes(original.read_bytes())
+        self.assertEqual(migrate_history(self.directory), (2, 0, []))
+        self.assertTrue(original.exists())
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 40), ([(10, 20)], []))
+        self.assertFalse(original.exists())
+        self.assertFalse(duplicate.exists())
+        with patch.object(Path, 'read_bytes', side_effect=AssertionError('JSON was read after import')):
+            self.assertEqual(fetch_history(self.directory, 'student', 40, 80), ([(50, 60)], []))
+        self.assertEqual(migrate_history(self.directory, delete_imported=True), (0, 0, []))
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 80), ([(10, 20), (50, 60)], []))
+
+    def test_migration_keeps_files_if_any_import_cannot_be_verified(self):
+        self.directory.mkdir()
+        valid = self.directory / 'valid.json'
+        valid.write_text(json.dumps({'version': 1, 'username': 'student', 'observed': 20, 'intervals': [(10, 20)]}))
+        invalid = self.directory / 'invalid.json'
+        invalid.write_text('{')
+        imported, removed, warnings = migrate_history(self.directory, delete_imported=True)
+        self.assertEqual((imported, removed), (1, 0))
+        self.assertIn('invalid.json', warnings[0])
+        self.assertTrue(valid.exists())
+        self.assertTrue(invalid.exists())
+
+    def test_existing_sqlite_history_is_deduplicated_on_open(self):
+        self.directory.mkdir()
+        path = self.directory / 'locks.sqlite3'
+        with sqlite3.connect(path) as db:
+            db.execute('CREATE TABLE intervals (source TEXT, position INTEGER, '
+                       'username TEXT, start REAL, end REAL)')
+            db.executemany('INSERT INTO intervals VALUES (?, ?, ?, ?, ?)', [
+                ('a', 10, 'student', 10, 20),
+                ('b', 10, 'student', 10, 20),
+                ('c', 10, 'other', 10, 20),
+            ])
+            db.execute('PRAGMA user_version = 2')
+        self.assertEqual(fetch_history(self.directory, 'student', 0, 100), ([(10, 20)], []))
+        self.assertEqual(fetch_history(self.directory, 'other', 0, 100), ([(10, 20)], []))
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM intervals').fetchone(), (2,))
+            self.assertEqual(db.execute('SELECT count(*) FROM observations').fetchone(), (3,))
+            self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
 
     def test_old_archive_is_read_without_creation(self):
         path = Path(self.folder.name) / 'old.sqlite3'
