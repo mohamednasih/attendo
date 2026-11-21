@@ -1,4 +1,4 @@
-# xattendo
+# Xattendo
 
 A local dashboard for 1337 students to check their Attendo attendance, estimated
 logged time, and screen-lock history. See your daily target and review previous

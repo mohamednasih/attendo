@@ -54,8 +54,10 @@ button { cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
 a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible, .table-wrap:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
 .sidebar { position: fixed; inset: 0 auto 0 0; width: 208px; padding: 28px 18px; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.brand { padding: 0 12px; font-size: 25px; font-weight: 700; letter-spacing: -1px; text-decoration: none; }
-.brand span, .green { color: var(--green); }
+.brand { display: block; color: var(--ink); font-size: 26px; font-weight: 700; line-height: 1.1; letter-spacing: -.055em; text-decoration: none; }
+.brand::first-letter { color: var(--logged); font-size: 1.4em; font-weight: 900; font-style: italic; margin-inline-end: .04em; }
+.sidebar .brand { padding-inline: 12px; }
+.green { color: var(--green); }
 .space-label { margin: 40px 12px 12px; font-size: 10px; font-weight: 600; letter-spacing: .8px; color: var(--muted); }
 .nav { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin: 2px 0; color: var(--secondary); text-decoration: none; border-radius: 4px; font-size: 13px; }
 .nav span { width: 16px; text-align: center; font-size: 17px; }
@@ -183,6 +185,7 @@ tr:last-child td { border-bottom: 0; }
 footer { padding: 18px 0 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .session-screen { min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 16px; }
 .session-card { width: min(100%, 460px); padding: clamp(20px, 5vw, 36px); }
+.session-card .brand { margin-bottom: 22px; }
 .session-card h1 { margin: 0; }
 .session-card p { margin: 8px 0 0; color: var(--secondary); overflow-wrap: anywhere; }
 .session-services { list-style: none; padding: 0; margin: 24px 0; border-top: 1px solid var(--border); }
@@ -207,7 +210,7 @@ footer { padding: 18px 0 24px; border-top: 1px solid var(--border); color: var(-
 }
 @media (max-width: 800px) {
   .sidebar { position: relative; width: 100%; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--border); }
-  .brand { margin-right: 10px; padding: 0 4px; font-size: 23px; }
+  .sidebar .brand { margin-right: 10px; padding-inline: 4px; font-size: 23px; }
   .space-label, .sidebar-bottom, .nav span, .repo-star { display: none; }
   .nav { padding: 7px 10px; font-size: 12px; }
   .repo-support { margin: 0 0 0 auto; padding: 7px 9px; font-size: 11px; }
@@ -225,7 +228,7 @@ footer { padding: 18px 0 24px; border-top: 1px solid var(--border); color: var(-
   .session-actions .button { flex: 1 1 auto; }
   main { padding: 0 14px; }
   .sidebar { gap: 3px; padding: 10px; }
-  .brand { width: 100%; margin-bottom: 5px; }
+  .sidebar .brand { width: 100%; margin-bottom: 5px; }
   .nav { padding: 7px 8px; }
   .repo-support { gap: 5px; font-size: 10px; }
   h1 { font-size: 24px; }
