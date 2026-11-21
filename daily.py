@@ -7,6 +7,7 @@ import math
 import os
 import getpass
 from pathlib import Path
+import platform
 import re
 import sqlite3
 import sys
@@ -89,6 +90,7 @@ def report(profile, day, zone, intervals, now, warnings, *, intra_estimate=None)
         warnings = [*warnings, missing_total]
     return {
         'date': day.isoformat(), 'timezone': str(zone), 'username': profile.login,
+        'current_workstation': platform.node().partition('.')[0] or None,
         'attendance_goal': client.attendance_goal(profile),
         'attendo_seconds': total, 'locked_seconds': locked,
         'attendo_recorded_seconds': recorded_total(profile, day),

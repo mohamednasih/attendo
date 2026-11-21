@@ -46,7 +46,16 @@
   </form>
 </dialog>
 <div class="toolbar"><div class="tabs" role="group" aria-label="Attendance day"><button id="today" aria-pressed="true">Today</button><button id="yesterday" aria-pressed="false">Yesterday</button></div><button id="refresh" class="button">Refresh data</button></div>
-<section class="cards" id="daily-cards" aria-label="Daily attendance"><article class="hero card" id="logged-card"><div class="card-top"><h2>Net attendance</h2><span class="pill" id="kind">Estimated</span></div><div class="metric-value" id="logged">--<span>h</span> --<span>m</span></div><p>Total attendance − screen-lock time</p><div id="goal-panel"><div class="goal-line"><span>Attendo daily recommendation</span><strong id="goal-label">—</strong></div><div class="progress"><div id="progress"></div></div><div class="goal-foot"><span id="remaining">Waiting for your attendance</span><span id="percent">—</span></div></div></article>
+<section class="cards" id="daily-cards" aria-label="Daily attendance"><article class="hero card" id="logged-card"><div class="card-top"><h2>Net attendance</h2><span class="pill" id="kind">Estimated</span></div><div class="metric-value" id="logged">--<span>h</span> --<span>m</span></div><p>Total attendance − screen-lock time</p><div id="goal-panel">
+  <div class="goal-line"><span>Hours to log today</span><strong id="goal-label">—</strong></div>
+  <div class="progress"><div id="progress"></div></div>
+  <div class="goal-foot"><span id="remaining">Waiting for your attendance</span><span id="percent">—</span></div>
+  <details class="goal-note">
+    <summary>Why the target differs</summary>
+    <p>Xattendo’s daily target can differ from Attendo’s because Attendo calculates it incorrectly.</p>
+    <p>Xattendo divides the hours you still need by the counted days left and rounds up.</p>
+  </details>
+</div></article>
 <article class="card metric" id="recorded-card"><h2>Attendo recorded</h2><div class="metric-value recorded-value"><span id="recorded">—</span> <span id="recorded-expected" hidden></span></div><p id="recorded-description">Today’s recorded campus attendance</p><div class="metric-bottom">Already excludes screen locks</div></article>
 <article class="card metric" id="intra-card"><h2>Intra total time</h2><div class="metric-value" id="intra-total">—</div><p>Campus location time for this day</p><div class="metric-bottom">Includes screen-lock time</div></article>
 <article class="card metric" id="historical-card" hidden><h2>Recorded attendance</h2><div class="metric-value" id="historical-total">—</div><p>Recorded attendance for this day</p><div class="metric-bottom">From your Attendo account</div></article>

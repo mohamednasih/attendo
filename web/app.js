@@ -69,18 +69,27 @@ startupSetting.addEventListener('change', () => syncStartupSetting(startupSettin
 
 let today = campusToday();
 let selectedDay = defaultDaySetting.value === 'yesterday' ? previousDay() : today;
-let goal = null;
-let lastReport = null, loading = false;
+let loading = false;
 let dashboardRequest = 0;
+// At 35 minutes past a full hour, attendance rounds up to the next hour.
+const attendanceRoundingOffsetSeconds = (60 - 35) * 60;
 const duration = value => value == null ? '—' : `${Math.floor(value / 3600)}h ${String(Math.floor(value % 3600 / 60)).padStart(2,'0')}m`;
 const clock = value => new Intl.DateTimeFormat('en-GB', {timeZone:zone,hour:'2-digit',minute:'2-digit'}).format(new Date(value));
-function updateGoal() {
-  $('goal-label').textContent = goal == null ? 'Unavailable' : duration(goal * 3600);
-  const seconds = goal == null ? null : lastReport?.logged_seconds;
-  const percent = seconds == null ? 0 : Math.min(100, (goal === 0 ? 100 : seconds / (goal * 3600) * 100));
-  $('progress').style.width = `${percent}%`;
-  $('percent').textContent = seconds == null ? '—' : `${Math.floor(percent)}%`;
-  $('remaining').textContent = goal == null ? 'Attendo recommendation unavailable' : seconds == null ? 'Waiting for your attendance' : seconds >= goal*3600 ? 'Daily target reached' : `${duration(goal*3600-seconds)} to your goal`;
+function updateGoal(report) {
+  const target = report?.attendance_goal?.daily_seconds;
+  const logged = report?.logged_seconds;
+  $('goal-label').textContent = target == null ? 'Unavailable' : `${target / 3600}h`;
+  let message = target == null ? 'Attendo recommendation unavailable' : 'Waiting for your attendance';
+  let percent = null;
+  if (target != null && logged != null) {
+    const requiredSeconds = Math.max(0, target - attendanceRoundingOffsetSeconds);
+    const minutesLeft = Math.ceil(Math.max(0, requiredSeconds - logged) / 60);
+    percent = minutesLeft === 0 ? 100 : Math.floor(100 * logged / requiredSeconds);
+    message = minutesLeft === 0 ? 'Daily target reached' : `${duration(minutesLeft * 60)} to your goal`;
+  }
+  $('progress').style.width = `${percent ?? 0}%`;
+  $('percent').textContent = percent == null ? '—' : `${percent}%`;
+  $('remaining').textContent = message;
 }
 function updateDayView() {
   $('today').setAttribute('aria-pressed', String(selectedDay === today));
@@ -175,12 +184,11 @@ async function load(force = false, sessions = null) {
     $('session-status').textContent = 'Loading your attendance…';
     const data = await fetchDashboard(selectedDay, force);
     showDashboard();
-    lastReport = data.report;
-    goal = lastReport?.attendance_goal?.daily_seconds == null ? null : lastReport.attendance_goal.daily_seconds / 3600;
     renderAttendance(data);
     const r = data.report, locks = data.locks;
     $('signed-in-account').hidden = !r?.username;
-    $('signed-in-account').textContent = r?.username ? `Signed in as ${r.username}` : '';
+    const workstation = r?.current_workstation ? ` · Workstation ${r.current_workstation}` : '';
+    $('signed-in-account').textContent = r?.username ? `Signed in as ${r.username}${workstation}` : '';
     $('logged').replaceChildren();
     if (r?.logged_seconds != null) {
       const seconds = r.logged_seconds;
@@ -191,7 +199,7 @@ async function load(force = false, sessions = null) {
     $('historical-total').textContent = r?.time_kind === 'recorded' ? duration(r.attendo_seconds) : '—';
     const recorded = r?.attendo_recorded_seconds;
     const expectedHours = recorded == null && selectedDay === previousDay() && r?.logged_seconds != null
-      ? Math.floor((r.logged_seconds + 20 * 60) / 3600) : null;
+      ? Math.floor((r.logged_seconds + attendanceRoundingOffsetSeconds) / 3600) : null;
     $('recorded').textContent = recorded == null ? '—' : `${Math.floor(recorded / 3600)}h`;
     $('recorded-expected').hidden = expectedHours == null;
     $('recorded-expected').textContent = expectedHours == null ? '' : `(expected: ${expectedHours}h)`;
@@ -220,7 +228,7 @@ async function load(force = false, sessions = null) {
     } else {
       $('status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable.';
     }
-    updateGoal();
+    updateGoal(r);
   } catch (error) {
     if (!sessions?.active) {
       renderSessions({errors: [error.message]});

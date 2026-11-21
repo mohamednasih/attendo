@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from html.parser import HTMLParser
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -134,7 +135,7 @@ def attendance_goal(profile):
     return {'target_seconds': target * 3600,
             'remaining_seconds': remaining_hours * 3600,
             'remaining_days': remaining_days,
-            'daily_seconds': remaining_hours * 3600 / remaining_days if remaining_days else None}
+            'daily_seconds': math.ceil(remaining_hours / remaining_days) * 3600 if remaining_days else None}
 
 
 def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:

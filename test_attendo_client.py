@@ -58,11 +58,19 @@ class ClientTests(unittest.TestCase):
         profile = client.parse_profile(html)
         self.assertEqual(profile.target_hours, 30)
         goal = client.attendance_goal(profile)
-        self.assertEqual(goal['daily_seconds'], 27.5 * 3600 / 7)
+        self.assertEqual(goal['daily_seconds'], 4 * 3600)
+        self.assertEqual(goal['remaining_seconds'], 27.5 * 3600)
         self.assertEqual(goal['remaining_days'], 7)
 
     def test_missing_target_is_not_replaced_with_arbitrary_goal(self):
         self.assertIsNone(client.attendance_goal(client.parse_profile(page())))
+
+    def test_three_hours_across_two_days(self):
+        for counted_days, total, expected_hours in [(5, 27, 2), (6, 29, 1), (6, 30, 0)]:
+            with self.subTest(counted_days=counted_days, total=total):
+                period = SimpleNamespace(counted_days=counted_days, total=total)
+                goal = client.attendance_goal(SimpleNamespace(target_hours=30, current=period))
+                self.assertEqual(goal['daily_seconds'], expected_hours * 3600)
 
     def test_remaining_counted_day_recommendation(self):
         from dataclasses import replace
