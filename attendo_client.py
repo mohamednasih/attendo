@@ -532,12 +532,15 @@ def _fetch_browser_profile(timeout: float, *, skip: str | None = None) -> tuple[
     raise AttendoSessionError('Attendo rejected the session. Sign in again in Firefox, Chrome, or Brave, or refresh ATTENDO_TOKEN.')
 
 
-def session_active() -> bool:
+def session_profile() -> Snapshot | None:
     try:
         if os.environ.get("ATTENDO_COOKIE", "").strip() or os.environ.get("ATTENDO_TOKEN", "").strip():
-            fetch_profile(timeout=8, cookie=_cookie_from_environment())
-        else:
-            _fetch_browser_profile(8)
+            return fetch_profile(timeout=8, cookie=_cookie_from_environment())
+        profile, _ = _fetch_browser_profile(8)
+        return profile
     except AttendoSessionError:
-        return False
-    return True
+        return None
+
+
+def session_active() -> bool:
+    return session_profile() is not None

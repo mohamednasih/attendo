@@ -14,11 +14,15 @@ cd attendo
 make install
 ```
 
-The website opens automatically. Sign in to
-[Attendo](https://attendo.1337.ma/students/login) and [42 Intra](https://profile.intra.42.fr/) in Firefox, Chrome, or Brave,
-then click **Refresh data**.
+The website opens automatically and checks your sessions for
+[Attendo](https://attendo.1337.ma/students/login) and [42 Intra](https://profile.intra.42.fr/).
+The **Account sign-in** panel shows a status for each service. Follow any **Sign in**
+link in Firefox, Chrome, or Brave, then return to Xattendo. It checks automatically,
+or you can click **Refresh status**. Once both accounts are signed in, the dashboard
+opens.
 
 Chrome can take longer to fetch your session. We recommend signing in with Firefox.
+You can also start the server with `ATTENDO_TOKEN` set for Attendo.
 
 The app starts automatically when you log in and checks for updates. Keep the
 project folder where you installed it.

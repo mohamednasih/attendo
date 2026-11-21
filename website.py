@@ -4,6 +4,7 @@ import argparse
 import configparser
 from datetime import date, datetime
 from functools import partial
+import getpass
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -16,6 +17,7 @@ from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 import attendo_client
+import intra_client
 from desktop_startup import autostart_path, launch_at_login, set_launch_at_login
 
 ROOT = Path(__file__).resolve().parent
@@ -44,6 +46,37 @@ def dashboard(day, refresh=False):
             except (ValueError, OSError, subprocess.TimeoutExpired) as error:
                 data['errors'].append(str(error))
         return data
+
+
+def session_status():
+    errors = []
+    profile = None
+    try:
+        profile = attendo_client.session_profile()
+        attendo = profile is not None
+    except attendo_client.AttendoError as error:
+        attendo = None
+        errors.append(str(error))
+    except OSError:
+        attendo = None
+        errors.append('Unable to check the Attendo session.')
+
+    # Without an Attendo profile, use the campus workstation login for the Intra lookup.
+    try:
+        login = os.environ.get('INTRA_LOGIN') or (profile.login if profile else getpass.getuser())
+        intra_client.fetch_locations(login)
+        intra = True
+    except intra_client.IntraSessionError:
+        intra = False
+    except ValueError as error:
+        intra = None
+        errors.append(str(error))
+    except (OSError, KeyError):
+        intra = None
+        errors.append('Unable to check the 42 Intra session.')
+
+    active = False if False in (attendo, intra) else attendo and intra
+    return {'attendo': attendo, 'intra': intra, 'active': active, 'errors': errors}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -111,16 +144,8 @@ class Handler(SimpleHTTPRequestHandler):
             except (OSError, ValueError, configparser.Error):
                 self.send_json({'error': 'Unable to read the desktop startup setting.'}, 500)
         elif url.path == '/api/session':
-            try:
-                payload, status = {'active': attendo_client.session_active()}, 200
-            except (attendo_client.AttendoError, OSError):
-                payload, status = {'error': 'Unable to check the Attendo session.'}, 503
-            body = json.dumps(payload).encode()
-            self.send_response(status)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            payload = session_status()
+            self.send_json(payload, 503 if payload['active'] is None else 200)
         elif url.path == '/api/dashboard':
             try:
                 today = datetime.now(ZoneInfo('Africa/Casablanca')).date()
@@ -148,7 +173,6 @@ def main():
     args = parser.parse_args()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), partial(Handler, directory=str(ROOT / 'web')))
     from shared_history import HistoryCollector, DEFAULT_HISTORY
-    import getpass
     collector = HistoryCollector(DEFAULT_HISTORY, getpass.getuser())
     collector.start()
     signal.signal(signal.SIGTERM, lambda *_: threading.Thread(target=server.shutdown, daemon=True).start())

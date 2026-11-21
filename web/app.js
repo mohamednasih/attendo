@@ -101,28 +101,58 @@ async function fetchDashboard(day, force = false) {
 }
 
 function showDashboard() {
+  const returnFocus = $('session-screen').contains(document.activeElement);
   $('session-screen').hidden = true;
   $('sidebar').hidden = false;
   $('overview').hidden = false;
+  if (returnFocus) $('open-settings').focus();
 }
 
-function showLogin(message) {
+async function fetchSessions() {
+  const response = await fetch('/api/session', {cache: 'no-store'});
+  if (response.status === 404) throw new Error('Restart the local server to check both sessions.');
+  const sessions = await response.json();
+  if (!['attendo', 'intra'].every(key => [true, false, null].includes(sessions[key]))) {
+    throw new Error('Unable to check both sessions. Restart the local server and try again.');
+  }
+  return sessions;
+}
+
+function showSessionScreen() {
+  const opening = $('session-screen').hidden;
   if ($('settings').open) $('settings').close();
   $('sidebar').hidden = true;
   $('overview').hidden = true;
   $('session-screen').hidden = false;
-  $('session-title').textContent = 'Log in to Attendo';
-  $('session-status').textContent = message || 'Sign in using Firefox, Chrome, or Brave, then return here. The dashboard will open automatically.';
-  $('session-actions').hidden = false;
+  if (opening) $('session-title').focus();
 }
 
-function requiresLogin(data) {
-  return !data.report && data.errors.some(message =>
-    /No Attendo session found|Cannot read the Attendo session|Attendo (?:redirected the profile request|rejected the session)/i.test(message)
-  );
+function renderSessions(sessions) {
+  const missing = [];
+  for (const service of ['intra', 'attendo']) {
+    const active = sessions[service];
+    const name = $(`${service}-name`).textContent;
+    if (active === false) missing.push(name);
+    const state = active === true ? 'signed-in' : active === false ? 'signed-out' : 'unknown';
+    const status = $(`${service}-state`);
+    if (status.dataset.state === state) continue;
+    status.dataset.state = state;
+    status.textContent = active === true ? 'Signed in' : active === false ? 'Sign-in required' : 'Unable to verify';
+    const link = $(`${service}-login`);
+    link.firstElementChild.textContent = active === false ? 'Sign in' : 'Open site';
+    link.setAttribute('aria-label', `${active === false ? 'Sign in to' : 'Open'} ${name} in a new tab`);
+  }
+  const guidance = $('session-guidance');
+  guidance.hidden = !missing.length;
+  if (missing.length) {
+    const account = missing.length === 1 ? missing[0] : 'both services';
+    guidance.textContent = `Sign in to ${account} in Firefox, Chrome, or Brave, then return here.`;
+  }
+  const message = (sessions.errors || []).join(' ');
+  if ($('session-status').textContent !== message) $('session-status').textContent = message;
 }
 
-async function load(force = false, dashboardData = null) {
+async function load(force = false, sessions = null) {
   if (loading) return;
   dashboardRequest++;
   syncCampusDay();
@@ -132,21 +162,18 @@ async function load(force = false, dashboardData = null) {
   $('refresh').textContent = 'Refreshing…';
   $('today').disabled = true;
   $('yesterday').disabled = true;
-  $('status').className = ''; $('status').textContent = 'Syncing your attendance…';
   $('retry-session').disabled = true;
-  $('session-status').textContent = 'Checking your Attendo session…';
+  $('retry-session').textContent = 'Checking…';
   try {
-    const data = dashboardData ?? await fetchDashboard(selectedDay, force);
-    if (requiresLogin(data)) {
-      const wasPrompted = !$('session-screen').hidden && !$('session-actions').hidden;
-      const accessError = data.errors.find(message => message.includes('Cannot read the Attendo session'));
-      showLogin(accessError?.replace(/^Error: /, '') || (wasPrompted ? 'Attendo still has no usable session. Make sure sign-in completed in Firefox, Chrome, or Brave, and that your desktop keyring is unlocked.' : undefined));
+    sessions = sessions ?? await fetchSessions();
+    renderSessions(sessions);
+    if (!sessions.active) {
+      showSessionScreen();
       return;
     }
-    if (!data.report && !$('session-screen').hidden && !$('session-actions').hidden) {
-      $('session-status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable. Try checking again.';
-      return;
-    }
+    $('status').className = ''; $('status').textContent = 'Syncing your attendance…';
+    $('session-status').textContent = 'Loading your attendance…';
+    const data = await fetchDashboard(selectedDay, force);
     showDashboard();
     lastReport = data.report;
     goal = lastReport?.attendance_goal?.daily_seconds == null ? null : lastReport.attendance_goal.daily_seconds / 3600;
@@ -195,8 +222,9 @@ async function load(force = false, dashboardData = null) {
     }
     updateGoal();
   } catch (error) {
-    if (!$('session-screen').hidden && !$('session-actions').hidden) {
-      $('session-status').textContent = `${error.message} Try checking again.`;
+    if (!sessions?.active) {
+      renderSessions({errors: [error.message]});
+      showSessionScreen();
     } else {
       showDashboard();
       $('status').className = 'error';
@@ -209,6 +237,7 @@ async function load(force = false, dashboardData = null) {
     $('today').disabled = false;
     $('yesterday').disabled = false;
     $('retry-session').disabled = false;
+    $('retry-session').textContent = 'Refresh status';
   }
 }
 function previousDay() {
@@ -397,7 +426,6 @@ function renderInlineDay(container, {report, locks, errors}) {
 }
 
 let checkingSession = false;
-let hasSessionEndpoint = true;
 async function checkSession() {
   if (checkingSession || loading || document.hidden) return;
   if (syncCampusDay() && !$('overview').hidden) {
@@ -407,29 +435,16 @@ async function checkSession() {
   checkingSession = true;
   const request = dashboardRequest;
   try {
-    if (hasSessionEndpoint) {
-      const response = await fetch('/api/session', {cache: 'no-store'});
-      if (response.status === 404) {
-        hasSessionEndpoint = false;
-      } else {
-        if (!response.ok) return;
-        const {active} = await response.json();
-        if (request !== dashboardRequest) return;
-        if (active === false && $('session-screen').hidden) showLogin();
-        if (active === true && $('overview').hidden) await load(true);
-        return;
-      }
-    }
-
-    const data = await fetchDashboard(selectedDay, true);
+    const sessions = await fetchSessions();
     if (request !== dashboardRequest) return;
-    if (requiresLogin(data) && $('session-screen').hidden) {
-      await load(true, data);
-    } else if (data.report && $('overview').hidden) {
-      await load(true, data);
+    renderSessions(sessions);
+    if (sessions.active === false || (sessions.active === null && $('overview').hidden)) {
+      showSessionScreen();
+    } else if (sessions.active && $('overview').hidden) {
+      await load(true, sessions);
     }
-  } catch {
-    // Keep the current view while the session check is unavailable.
+  } catch (error) {
+    if (request === dashboardRequest && !$('session-screen').hidden) renderSessions({errors: [error.message]});
   } finally {
     checkingSession = false;
   }

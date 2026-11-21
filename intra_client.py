@@ -9,12 +9,16 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
-from attendo_client import AttendoError, _NoRedirect, _chromium_cookie_files, _firefox_profiles
+from attendo_client import AttendoSessionError, _NoRedirect, _chromium_cookie_files, _firefox_profiles
 
 HOST = 'translate.intra.42.fr'
 PROFILE_ORIGIN = 'https://profile.intra.42.fr'
 USER_AGENT = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
               '(KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36')
+
+
+class IntraSessionError(ValueError):
+    pass
 
 
 def parse_locations(payload):
@@ -40,7 +44,9 @@ def browser_sessions():
     except ImportError:
         raise ValueError('Browser session support is missing. Run make dependencies.') from None
 
-    firefox_files = [profile / 'cookies.sqlite' for profile in _firefox_profiles()]
+    firefox_files = [profile / 'cookies.sqlite' for profile in _firefox_profiles()
+                     if (profile / 'cookies.sqlite').is_file()]
+    unreadable = False
     for browser, files in (
         ('firefox', firefox_files),
         ('chrome', _chromium_cookie_files('chrome')),
@@ -50,6 +56,7 @@ def browser_sessions():
             try:
                 cookies = getattr(browser_cookie3, browser)(cookie_file=str(path), domain_name='42.fr')
             except Exception:
+                unreadable = True
                 continue
             jar = CookieJar()
             for cookie in cookies:
@@ -57,10 +64,13 @@ def browser_sessions():
                     jar.set_cookie(cookie)
             if len(jar):
                 yield jar
+    if unreadable:
+        raise ValueError('Could not read the 42 Intra browser session. Unlock your desktop keyring and try again.')
 
 
 def fetch_locations(login):
     request_url = f'https://{HOST}/users/{quote(login, safe="")}/locations_stats.json'
+    invalid_response = False
     for jar in browser_sessions():
         request = Request(request_url, headers={
             'Accept': '*/*',
@@ -77,13 +87,17 @@ def fetch_locations(login):
             try:
                 payload = json.loads(body)
             except (json.JSONDecodeError, UnicodeDecodeError):
+                if not re.search(rb'<input\b[^>]*\btype\s*=\s*["\']?password\b', body, re.I):
+                    invalid_response = True
                 continue
             return parse_locations(payload), datetime.now().astimezone()
         except HTTPError as error:
             if error.code not in (401, 403):
                 raise ValueError(f'42 Intra returned HTTP {error.code}.') from None
-        except URLError:
+        except (URLError, OSError):
             raise ValueError('Could not reach 42 Intra. Check your connection and refresh.') from None
-        except AttendoError:
+        except AttendoSessionError:
             continue
-    raise ValueError('Sign in to 42 Intra in Firefox, Chrome, or Brave, then refresh.')
+    if invalid_response:
+        raise ValueError('42 Intra returned an unexpected location statistics response.')
+    raise IntraSessionError('Sign in to 42 Intra in Firefox, Chrome, or Brave, then refresh.')

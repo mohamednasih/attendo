@@ -4,12 +4,21 @@
 <body>
 <section class="session-screen" id="session-screen" aria-labelledby="session-title">
   <div class="card session-card">
-    <h1 id="session-title">Checking your Attendo session</h1>
-    <p id="session-status" role="status">Loading your attendance…</p>
-    <div class="session-actions" id="session-actions" hidden>
-      <a class="button" href="https://attendo.1337.ma/students/login" target="_blank" rel="noopener noreferrer">Log in to Attendo</a>
-      <button class="button" id="retry-session">Check again</button>
-      <p class="session-browser-note">Chrome can take longer to fetch your session. We recommend signing in with Firefox.</p>
+    <h1 id="session-title" tabindex="-1">Account sign-in</h1>
+    <p id="session-guidance">Sign in to both services in Firefox, Chrome, or Brave, then return here.</p>
+    <ul class="session-services" aria-label="Accounts">
+      <li>
+        <div><strong id="intra-name">42 Intra</strong><span class="session-state" id="intra-state" role="status" aria-labelledby="intra-name">Checking…</span></div>
+        <a class="session-link" id="intra-login" href="https://profile.intra.42.fr/" target="_blank" rel="noopener noreferrer" aria-label="Open 42 Intra in a new tab"><span>Open site</span> <span aria-hidden="true">↗</span></a>
+      </li>
+      <li>
+        <div><strong id="attendo-name">1337 Attendo</strong><span class="session-state" id="attendo-state" role="status" aria-labelledby="attendo-name">Checking…</span></div>
+        <a class="session-link" id="attendo-login" href="https://attendo.1337.ma/students/login" target="_blank" rel="noopener noreferrer" aria-label="Open 1337 Attendo in a new tab"><span>Open site</span> <span aria-hidden="true">↗</span></a>
+      </li>
+    </ul>
+    <p id="session-status" role="status"></p>
+    <div class="session-actions">
+      <button class="button" id="retry-session" type="button" disabled>Checking…</button>
     </div>
   </div>
 </section>
@@ -56,7 +65,7 @@
     <span class="period-count" id="period-progress-count"></span>
   </div>
 </section>
-<section class="card attendance" id="attendance"><div class="section-heading"><div><h2>Attendance</h2></div></div><div id="attendance-periods" class="attendance-periods">Connect to Attendo to see your recorded attendance.</div><p class="attendance-help">Expand a day to see its attendance and lock history. Recorded totals already exclude locks.</p></section><details class="notes"><summary>About these numbers</summary><p>Today and yesterday show an estimate from the 42 Intra location total minus observed locks. Attendo’s recorded totals already exclude locks. Reports update when you refresh. Lock history may be incomplete.</p><ul id="warnings"></ul><p>To connect, sign in at <a href="https://attendo.1337.ma/students/login" target="_blank" rel="noopener noreferrer">Attendo in Firefox, Chrome, or Brave</a>, and <a href="https://profile.intra.42.fr/" target="_blank" rel="noopener noreferrer">42 Intra</a>, then refresh this page. Chrome can take longer to fetch your session. We recommend signing in with Firefox. You can also launch the server with ATTENDO_TOKEN set.</p></details>
+<section class="card attendance" id="attendance"><div class="section-heading"><div><h2>Attendance</h2></div></div><div id="attendance-periods" class="attendance-periods">Connect to Attendo to see your recorded attendance.</div><p class="attendance-help">Expand a day to see its attendance and lock history. Recorded totals already exclude locks.</p></section><details class="notes"><summary>About these numbers</summary><p>Today and yesterday show an estimate from the 42 Intra location total minus observed locks. Attendo’s recorded totals already exclude locks. Reports update when you refresh. Lock history may be incomplete.</p><ul id="warnings"></ul></details>
 <footer><div id="status" role="status" aria-live="polite">Loading your attendance…</div></footer></main>
 
 </body></html>

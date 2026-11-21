@@ -11,6 +11,41 @@ import website
 
 
 class WebsiteTests(unittest.TestCase):
+    def test_session_endpoint_requires_both_logins(self):
+        handler = website.Handler.__new__(website.Handler)
+        handler.path = '/api/session'
+        handler.headers = {}
+        handler.send_json = Mock()
+        for attendo in (True, False):
+            for intra in (True, False):
+                profile = SimpleNamespace(login='student') if attendo else None
+                rejection = None if intra else website.intra_client.IntraSessionError()
+                with self.subTest(attendo=attendo, intra=intra), \
+                     patch.dict('os.environ', {'INTRA_LOGIN': ''}), \
+                     patch.object(website.getpass, 'getuser', return_value='workstation-user'), \
+                     patch.object(website.attendo_client, 'session_profile', return_value=profile), \
+                     patch.object(website.intra_client, 'fetch_locations', side_effect=rejection) as locations:
+                    handler.do_GET()
+                    locations.assert_called_once_with('student' if attendo else 'workstation-user')
+                    handler.send_json.assert_called_with(
+                        {'attendo': attendo, 'intra': intra, 'active': attendo and intra, 'errors': []}, 200)
+
+    def test_session_check_distinguishes_unavailable_services_from_missing_logins(self):
+        with patch.dict('os.environ', {'INTRA_LOGIN': 'configured-user'}), \
+             patch.object(website.attendo_client, 'session_profile',
+                          side_effect=website.attendo_client.AttendoError('Could not reach Attendo.')), \
+             patch.object(website.intra_client, 'fetch_locations', return_value=({}, None)) as locations:
+            sessions = website.session_status()
+            locations.assert_called_once_with('configured-user')
+        self.assertEqual(sessions, {'attendo': None, 'intra': True, 'active': None,
+                                    'errors': ['Could not reach Attendo.']})
+
+        with patch.object(website.attendo_client, 'session_profile', return_value=None), \
+             patch.object(website.intra_client, 'fetch_locations', side_effect=ValueError('42 Intra is offline.')):
+            sessions = website.session_status()
+        self.assertEqual(sessions, {'attendo': False, 'intra': None, 'active': False,
+                                    'errors': ['42 Intra is offline.']})
+
     def test_attendance_failure_keeps_offline_locks(self):
         locks = {'periods': [], 'locked_seconds': 0}
         with patch.object(website, 'command_json', side_effect=[ValueError('Sign in required'), locks]):
