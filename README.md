@@ -21,7 +21,10 @@ link in Firefox, Chrome, or Brave, then return to Xattendo. It checks automatica
 or you can click **Refresh status**. Once both accounts are signed in, the dashboard
 opens.
 
-Chrome can take longer to fetch your session. We recommend signing in with Firefox.
+> [!NOTE]
+> **We recommend Firefox.** If you use Chrome, it may take about 30 seconds for
+> your sign-in to appear in Xattendo.
+
 You can also start the server with `ATTENDO_TOKEN` set for Attendo.
 
 The app starts automatically when you log in and checks for updates. Keep the

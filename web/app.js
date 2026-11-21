@@ -71,6 +71,7 @@ let today = campusToday();
 let selectedDay = defaultDaySetting.value === 'yesterday' ? previousDay() : today;
 let loading = false;
 let dashboardRequest = 0;
+const dayReports = new Map();
 // At 35 minutes past a full hour, attendance rounds up to the next hour.
 const attendanceRoundingOffsetSeconds = (60 - 35) * 60;
 const duration = value => value == null ? '—' : `${Math.floor(value / 3600)}h ${String(Math.floor(value % 3600 / 60)).padStart(2,'0')}m`;
@@ -128,6 +129,9 @@ async function fetchSessions() {
 }
 
 function showSessionScreen() {
+  dayReports.clear();
+  $('day-report').hidden = true;
+  $('signed-in-account').hidden = true;
   const opening = $('session-screen').hidden;
   if ($('settings').open) $('settings').close();
   $('sidebar').hidden = true;
@@ -161,91 +165,109 @@ function renderSessions(sessions) {
   if ($('session-status').textContent !== message) $('session-status').textContent = message;
 }
 
+function renderDashboard(data) {
+  renderAttendance(data);
+  const r = data.report, locks = data.locks;
+  $('signed-in-account').hidden = !r?.username;
+  const workstation = r?.current_workstation ? ` · Workstation ${r.current_workstation}` : '';
+  $('signed-in-account').textContent = r?.username ? `Signed in as ${r.username}${workstation}` : '';
+  $('logged').replaceChildren();
+  if (r?.logged_seconds != null) {
+    const seconds = r.logged_seconds;
+    $('logged').append(document.createTextNode(Math.floor(seconds/3600)));
+    const h=document.createElement('span');h.textContent='h';$('logged').append(h,document.createTextNode(String(Math.floor(seconds%3600/60)).padStart(2,'0')));
+    const m=document.createElement('span');m.textContent='m';$('logged').append(m);
+  } else $('logged').textContent = '—';
+  $('historical-total').textContent = r?.time_kind === 'recorded' ? duration(r.attendo_seconds) : '—';
+  const recorded = r?.attendo_recorded_seconds;
+  const expectedHours = recorded == null && selectedDay === previousDay() && r?.logged_seconds != null
+    ? Math.floor((r.logged_seconds + attendanceRoundingOffsetSeconds) / 3600) : null;
+  $('recorded').textContent = recorded == null ? '—' : `${Math.floor(recorded / 3600)}h`;
+  $('recorded-expected').hidden = expectedHours == null;
+  $('recorded-expected').textContent = expectedHours == null ? '' : `(expected: ${expectedHours}h)`;
+  const latestRecorded = (r?.attendance_periods || []).flatMap(period => period.days)
+    .filter(day => day.date < selectedDay).sort((a, b) => b.date.localeCompare(a.date))[0];
+  $('recorded-description').hidden = expectedHours != null;
+  $('recorded-description').textContent = recorded != null ? 'Recorded campus attendance for this day'
+    : !r ? 'Connect to Attendo and refresh'
+    : latestRecorded ? `Not yet recorded · latest ${duration(latestRecorded.hours * 3600)} (${latestRecorded.date})`
+    : 'Attendo has not returned a saved total for this day';
+  $('intra-total').textContent = duration(r?.attendo_source === '42_intra_locations' ? r.attendo_seconds : null);
+  $('locked').textContent = duration(locks?.locked_seconds ?? r?.locked_seconds);
+  $('kind').textContent = r?.time_kind === 'recorded' ? 'Recorded' : 'Estimated';
+  const periods = locks?.periods || [];
+  $('count').textContent = `${periods.length} period${periods.length===1?'':'s'}`;
+  renderLockRows($('periods'), locks);
+  $('warnings').replaceChildren();
+  for (const message of new Set([...(r?.warnings || []), ...(locks?.warnings || []), ...(data.errors || [])])) { const li=document.createElement('li');li.textContent=message;$('warnings').append(li); }
+  $('status').className = data.errors.length ? 'error' : '';
+  if (r) {
+    const attendanceStatus = r.time_kind === 'recorded' ? (r.attendo_seconds == null ? 'Recorded total unavailable for this day' : 'Recorded daily attendance')
+      : r.attendo_seconds == null ? '42 Intra location data unavailable for this day'
+      : 'Estimated attendance, adjusted for observed locks';
+    const details = data.errors.length || r.attendo_seconds == null ? ' · See “About these numbers” for details.' : '';
+    $('status').textContent = `${attendanceStatus}${details}`;
+  } else {
+    $('status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable.';
+  }
+  updateGoal(r);
+}
+
 async function load(force = false, sessions = null) {
-  if (loading) return;
-  dashboardRequest++;
+  const request = ++dashboardRequest;
   syncCampusDay();
   updateDayView();
+  const day = selectedDay;
+  if (!dayReports.has(day)) dayReports.set(day, {});
+  const entry = dayReports.get(day);
+  $('day-report').hidden = !entry.data;
+  const checkSignIn = force || $('overview').hidden;
   loading = true;
   $('refresh').disabled = true;
   $('refresh').textContent = 'Refreshing…';
-  $('today').disabled = true;
-  $('yesterday').disabled = true;
   $('retry-session').disabled = true;
   $('retry-session').textContent = 'Checking…';
   try {
-    sessions = sessions ?? await fetchSessions();
-    renderSessions(sessions);
-    if (!sessions.active) {
-      showSessionScreen();
-      return;
+    if (checkSignIn) {
+      sessions = sessions ?? await fetchSessions();
+      if (request !== dashboardRequest) return;
+      renderSessions(sessions);
+      if (!sessions.active) {
+        showSessionScreen();
+        return;
+      }
+      showDashboard();
     }
-    $('status').className = ''; $('status').textContent = 'Syncing your attendance…';
-    $('session-status').textContent = 'Loading your attendance…';
-    const data = await fetchDashboard(selectedDay, force);
-    showDashboard();
-    renderAttendance(data);
-    const r = data.report, locks = data.locks;
-    $('signed-in-account').hidden = !r?.username;
-    const workstation = r?.current_workstation ? ` · Workstation ${r.current_workstation}` : '';
-    $('signed-in-account').textContent = r?.username ? `Signed in as ${r.username}${workstation}` : '';
-    $('logged').replaceChildren();
-    if (r?.logged_seconds != null) {
-      const seconds = r.logged_seconds;
-      $('logged').append(document.createTextNode(Math.floor(seconds/3600)));
-      const h=document.createElement('span');h.textContent='h';$('logged').append(h,document.createTextNode(String(Math.floor(seconds%3600/60)).padStart(2,'0')));
-      const m=document.createElement('span');m.textContent='m';$('logged').append(m);
-    } else $('logged').textContent = '—';
-    $('historical-total').textContent = r?.time_kind === 'recorded' ? duration(r.attendo_seconds) : '—';
-    const recorded = r?.attendo_recorded_seconds;
-    const expectedHours = recorded == null && selectedDay === previousDay() && r?.logged_seconds != null
-      ? Math.floor((r.logged_seconds + attendanceRoundingOffsetSeconds) / 3600) : null;
-    $('recorded').textContent = recorded == null ? '—' : `${Math.floor(recorded / 3600)}h`;
-    $('recorded-expected').hidden = expectedHours == null;
-    $('recorded-expected').textContent = expectedHours == null ? '' : `(expected: ${expectedHours}h)`;
-    const latestRecorded = (r?.attendance_periods || []).flatMap(period => period.days)
-      .filter(day => day.date < selectedDay).sort((a, b) => b.date.localeCompare(a.date))[0];
-    $('recorded-description').hidden = expectedHours != null;
-    $('recorded-description').textContent = recorded != null ? 'Recorded campus attendance for this day'
-      : !r ? 'Connect to Attendo and refresh'
-      : latestRecorded ? `Not yet recorded · latest ${duration(latestRecorded.hours * 3600)} (${latestRecorded.date})`
-      : 'Attendo has not returned a saved total for this day';
-    $('intra-total').textContent = duration(r?.attendo_source === '42_intra_locations' ? r.attendo_seconds : null);
-    $('locked').textContent = duration(locks?.locked_seconds ?? r?.locked_seconds);
-    $('kind').textContent = r?.time_kind === 'recorded' ? 'Recorded' : 'Estimated';
-    const periods = locks?.periods || [];
-    $('count').textContent = `${periods.length} period${periods.length===1?'':'s'}`;
-    renderLockRows($('periods'), locks);
-    $('warnings').replaceChildren();
-    for (const message of new Set([...(r?.warnings || []), ...(locks?.warnings || []), ...(data.errors || [])])) { const li=document.createElement('li');li.textContent=message;$('warnings').append(li); }
-    $('status').className = data.errors.length ? 'error' : '';
-    if (r) {
-      const attendanceStatus = r.time_kind === 'recorded' ? (r.attendo_seconds == null ? 'Recorded total unavailable for this day' : 'Recorded daily attendance')
-        : r.attendo_seconds == null ? '42 Intra location data unavailable for this day'
-        : 'Estimated attendance, adjusted for observed locks';
-      const details = data.errors.length || r.attendo_seconds == null ? ' · See “About these numbers” for details.' : '';
-      $('status').textContent = `${attendanceStatus}${details}`;
-    } else {
-      $('status').textContent = data.errors[0]?.replace(/^Error: /, '') || 'Attendance is unavailable.';
+
+    if (entry.data) renderDashboard(entry.data);
+    $('status').className = '';
+    $('status').textContent = day === today ? 'Loading today’s attendance…' : 'Loading yesterday’s attendance…';
+    // Reuse a date's pending request when switching away and back.
+    if (!entry.pending) {
+      entry.pending = fetchDashboard(day, force).finally(() => { entry.pending = null; });
     }
-    updateGoal(r);
+    const data = await entry.pending;
+    entry.data = data;
+    if (request !== dashboardRequest) return;
+    renderDashboard(data);
+    $('day-report').hidden = false;
   } catch (error) {
-    if (!sessions?.active) {
+    if (request !== dashboardRequest) return;
+    if (checkSignIn && !sessions?.active) {
       renderSessions({errors: [error.message]});
       showSessionScreen();
     } else {
-      showDashboard();
       $('status').className = 'error';
-      $('status').textContent = `${error.message} Previous values may be stale.`;
+      $('status').textContent = $('day-report').hidden ? error.message : `${error.message} Previous values may be stale.`;
     }
   } finally {
-    loading = false;
-    $('refresh').disabled = false;
-    $('refresh').textContent = 'Refresh data';
-    $('today').disabled = false;
-    $('yesterday').disabled = false;
-    $('retry-session').disabled = false;
-    $('retry-session').textContent = 'Refresh status';
+    if (request === dashboardRequest) {
+      loading = false;
+      $('refresh').disabled = false;
+      $('refresh').textContent = 'Refresh data';
+      $('retry-session').disabled = false;
+      $('retry-session').textContent = 'Refresh status';
+    }
   }
 }
 function previousDay() {
@@ -258,15 +280,17 @@ function syncCampusDay() {
   const currentDay = campusToday();
   if (currentDay === today) return false;
   const viewingToday = selectedDay === today;
+  dayReports.clear();
   today = currentDay;
   selectedDay = viewingToday ? today : previousDay();
   return true;
 }
 
 function selectDay(viewToday) {
-  if (loading) return;
-  syncCampusDay();
-  selectedDay = viewToday ? today : previousDay();
+  const rolledOver = syncCampusDay();
+  const day = viewToday ? today : previousDay();
+  if (!rolledOver && day === selectedDay) return;
+  selectedDay = day;
   load();
 }
 $('retry-session').addEventListener('click', () => load(true));

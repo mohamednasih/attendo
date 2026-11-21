@@ -191,6 +191,7 @@ footer { padding: 18px 0 24px; border-top: 1px solid var(--border); color: var(-
 .session-card .brand { margin-bottom: 22px; }
 .session-card h1 { margin: 0; }
 .session-card p { margin: 8px 0 0; color: var(--secondary); overflow-wrap: anywhere; }
+.session-card .browser-note { padding: 10px 12px; border-radius: 6px; color: var(--warning-text); background: var(--warning-bg); }
 .session-services { list-style: none; padding: 0; margin: 24px 0; border-top: 1px solid var(--border); }
 .session-services li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
 .session-services strong { font-size: 16px; font-weight: 600; }

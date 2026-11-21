@@ -1,8 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
 from email.message import Message
 from io import BytesIO
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Barrier
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -68,6 +70,20 @@ class WebsiteTests(unittest.TestCase):
             website.dashboard('2026-11-15')
             website.dashboard('2026-11-15', refresh=True)
         self.assertEqual(fetch.call_count, 4)
+
+    def test_different_days_can_load_concurrently(self):
+        reports_started = Barrier(2, timeout=5)
+
+        def fetch(script, args):
+            if script == 'daily.py':
+                reports_started.wait()
+            return {'date': args[-1]}
+
+        days = ['2026-11-14', '2026-11-15']
+        with patch.object(website, 'command_json', side_effect=fetch), ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(website.dashboard, days))
+        for day, result in zip(days, results):
+            self.assertEqual(result, {'date': day, 'report': {'date': day}, 'locks': {'date': day}, 'errors': []})
 
     def test_startup_setting_toggles_persistent_desktop_entry(self):
         with TemporaryDirectory() as directory:

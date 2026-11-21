@@ -21,7 +21,6 @@ import intra_client
 from desktop_startup import autostart_path, launch_at_login, set_launch_at_login
 
 ROOT = Path(__file__).resolve().parent
-LOCK = threading.Lock()
 SETTINGS_LOCK = threading.Lock()
 
 
@@ -35,17 +34,16 @@ def command_json(script, args):
 
 
 def dashboard(day, refresh=False):
-    with LOCK:
-        data = {'date': day, 'report': None, 'locks': None, 'errors': []}
-        for key, script, args in (
-            ('report', 'daily.py', ['--intra', '--once', '--no-collect', '--date', day]),
-            ('locks', 'shared_history.py', ['list', '--json', '--date', day]),
-        ):
-            try:
-                data[key] = command_json(script, args)
-            except (ValueError, OSError, subprocess.TimeoutExpired) as error:
-                data['errors'].append(str(error))
-        return data
+    data = {'date': day, 'report': None, 'locks': None, 'errors': []}
+    for key, script, args in (
+        ('report', 'daily.py', ['--intra', '--once', '--no-collect', '--date', day]),
+        ('locks', 'shared_history.py', ['list', '--json', '--date', day]),
+    ):
+        try:
+            data[key] = command_json(script, args)
+        except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+            data['errors'].append(str(error))
+    return data
 
 
 def session_status():
