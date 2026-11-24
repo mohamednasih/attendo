@@ -193,7 +193,7 @@ class SharedTests(unittest.TestCase):
         self.assertEqual(data['periods'][0]['seconds'], 120)
         self.assertFalse(data['periods'][0]['ongoing'])
         self.assertTrue(data['periods'][1]['ongoing'])
-        self.assertIn('00:02:30', format_locks(data))
+        self.assertIn('Total locked: 00h:02m', format_locks(data))
 
     def test_list_missing_current_state_keeps_saved_periods(self):
         zone = ZoneInfo('Africa/Casablanca')

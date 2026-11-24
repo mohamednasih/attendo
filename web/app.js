@@ -91,14 +91,12 @@ let selectedDay = startupDay === 'yesterday' ? previousDay() : today;
 let loading = false;
 let dashboardRequest = 0;
 const dayReports = new Map();
-// At 35 minutes past a full hour, attendance rounds up to the next hour.
-const attendanceRoundingOffsetSeconds = (60 - 35) * 60;
 function duration(seconds) {
   if (seconds == null) return '—';
   const totalMinutes = Math.floor(seconds / 60);
   const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
   const minutes = String(totalMinutes % 60).padStart(2, '0');
-  return `${hours}:${minutes}`;
+  return `${hours}h:${minutes}m`;
 }
 const campusClock = new Intl.DateTimeFormat('en-GB', {timeZone: zone, hour: '2-digit', minute: '2-digit'});
 const clock = value => campusClock.format(new Date(value));
@@ -108,27 +106,110 @@ function showRefreshTime(date) {
   else label.removeAttribute('datetime');
   label.textContent = date ? `Last refreshed ${campusClock.format(date)}` : '';
 }
+let goalStorageKey = null;
+const goalEditor = $('goal-editor');
+
+function setGoalEditorOpen(open) {
+  goalEditor.hidden = !open;
+  $('edit-goal').setAttribute('aria-expanded', String(open));
+  $('goal-error').hidden = true;
+}
+
+function savedGoalMinutes(key) {
+  if (!key) return null;
+  try {
+    const value = localStorage.getItem(key);
+    const minutes = Number(value);
+    return value !== null && /^\d+$/.test(value) && Number.isSafeInteger(minutes) ? minutes : null;
+  } catch { return null; }
+}
+
 function updateGoal(report) {
-  const target = report?.attendance_goal?.daily_seconds;
+  if (selectedDay !== today) return;
+  const key = report?.username ? `logged-goal:${encodeURIComponent(report.username)}:${today}` : null;
+  if (key !== goalStorageKey) setGoalEditorOpen(false);
+  goalStorageKey = key;
+  const personal = savedGoalMinutes(key);
+  const recommended = report?.attendance_goal?.daily_seconds;
+  const target = personal !== null ? personal * 60 : recommended;
   const logged = report?.logged_seconds;
+  $('goal-title').textContent = personal !== null ? 'Today’s personal goal' : 'Today’s goal';
+  $('goal-title').title = personal !== null ? 'Your target for this date, saved in this browser.'
+    : 'Uses Attendo’s recommendation when available. Otherwise, divides the remaining period time by the counted days left.';
   $('goal-label').textContent = target == null ? 'Unavailable' : duration(target);
-  let message = target == null ? 'Attendo recommendation unavailable' : 'Waiting for your attendance';
+  $('edit-goal').disabled = !key;
+  $('reset-goal').hidden = personal === null;
+  $('reset-goal').textContent = recommended != null ? `Use recommended goal · ${duration(recommended)}` : 'Remove personal goal';
+  if (goalEditor.hidden) {
+    const minutes = Math.floor((target ?? 0) / 60);
+    $('goal-hours').value = Math.floor(minutes / 60);
+    $('goal-minutes').value = minutes % 60;
+  }
+  let message = target == null ? 'Daily goal unavailable' : 'Waiting for your attendance';
   let percent = null;
   if (target != null && logged != null) {
-    const requiredSeconds = Math.max(0, target - attendanceRoundingOffsetSeconds);
-    const minutesLeft = Math.ceil(Math.max(0, requiredSeconds - logged) / 60);
-    percent = minutesLeft === 0 ? 100 : Math.floor(100 * logged / requiredSeconds);
+    const loggedMinutes = Math.floor(logged / 60);
+    const targetMinutes = target / 60;
+    const minutesLeft = Math.max(0, targetMinutes - loggedMinutes);
+    percent = minutesLeft === 0 ? 100 : Math.floor(100 * loggedMinutes / targetMinutes);
     message = minutesLeft === 0 ? 'Daily target reached' : `${duration(minutesLeft * 60)} to your goal`;
   }
   $('progress').style.width = `${percent ?? 0}%`;
   $('percent').textContent = percent == null ? '—' : `${percent}%`;
   $('remaining').textContent = message;
+  $('progress').parentElement.hidden = target == null;
 }
+
+$('edit-goal').addEventListener('click', () => {
+  setGoalEditorOpen(goalEditor.hidden);
+  if (!goalEditor.hidden) $('goal-hours').focus();
+  else updateGoal(dayReports.get(selectedDay)?.data?.report);
+});
+
+function closeGoalEditor() {
+  setGoalEditorOpen(false);
+  updateGoal(dayReports.get(selectedDay)?.data?.report);
+  $('edit-goal').focus();
+}
+
+function savePersonalGoal(minutes) {
+  if (!goalStorageKey) return;
+  try {
+    if (minutes === null) localStorage.removeItem(goalStorageKey);
+    else localStorage.setItem(goalStorageKey, String(minutes));
+  } catch {
+    $('goal-error').textContent = 'Could not save your goal in this browser.';
+    $('goal-error').hidden = false;
+    return;
+  }
+  closeGoalEditor();
+}
+
+goalEditor.addEventListener('submit', event => {
+  event.preventDefault();
+  const minutes = $('goal-hours').valueAsNumber * 60 + $('goal-minutes').valueAsNumber;
+  if (Number.isSafeInteger(minutes)) savePersonalGoal(minutes);
+  else {
+    $('goal-error').textContent = 'Enter a duration in whole hours and minutes.';
+    $('goal-error').hidden = false;
+  }
+});
+$('cancel-goal').addEventListener('click', closeGoalEditor);
+$('reset-goal').addEventListener('click', () => savePersonalGoal(null));
+window.addEventListener('storage', event => {
+  if (goalStorageKey && (event.key === goalStorageKey || event.key === null)) {
+    updateGoal(dayReports.get(selectedDay)?.data?.report);
+  }
+});
 function updateDayView() {
   $('today').setAttribute('aria-pressed', String(selectedDay === today));
   $('yesterday').setAttribute('aria-pressed', String(selectedDay === previousDay()));
   const historical = selectedDay !== today && selectedDay !== previousDay();
   $('goal-panel').hidden = selectedDay !== today;
+  if (selectedDay !== today) {
+    goalStorageKey = null;
+    setGoalEditorOpen(false);
+  }
   $('logged-card').hidden = historical;
   $('recorded-card').hidden = historical;
   $('intra-card').hidden = historical;
@@ -160,6 +241,7 @@ async function fetchSessions() {
 
 function showSessionScreen() {
   dayReports.clear();
+  updateGoal();
   showRefreshTime(null);
   $('day-report').hidden = true;
   $('session-details').hidden = true;
@@ -349,7 +431,6 @@ function renderLockRows(body, locks) {
 
 const periodDateFormat = new Intl.DateTimeFormat('en-US', {month:'short', day:'numeric', timeZone:'UTC'});
 const chartDayFormat = new Intl.DateTimeFormat('en-GB', {weekday:'short', month:'short', day:'numeric', timeZone:'UTC'});
-const periodHours = new Intl.NumberFormat('en-GB', {style: 'unit', unit: 'hour', unitDisplay: 'long'});
 
 function renderCurrentPeriod(period, target, dateRange) {
   $('period-gauge').hidden = !period;
@@ -363,15 +444,15 @@ function renderCurrentPeriod(period, target, dateRange) {
   const reached = hasTarget && seconds >= target;
   const progress = hasTarget ? Math.min(1, Math.max(0, seconds / target)) : 0;
   $('period-gauge').style.setProperty('--period-sweep', `${progress * 270}deg`);
-  $('period-progress-total').textContent = period.total.toLocaleString('en-GB');
-  $('period-progress-target').textContent = hasTarget ? `of ${periodHours.format(target / 3600)}` : 'Hours recorded';
+  $('period-progress-total').textContent = duration(seconds);
+  $('period-progress-target').textContent = hasTarget ? `of ${duration(target)}` : 'Time recorded';
   $('period-progress-count').textContent = `${period.days.filter(day => day.counted).length} / 7 days counted`;
   $('period-progress-status').textContent = reached ? 'Target reached' : hasTarget ? 'In progress' : 'Target unavailable';
   $('period-progress-status').classList.toggle('target-reached', reached);
 }
 
 function chartDuration(seconds) {
-  if (seconds > 0 && seconds < 60) return '<00:01';
+  if (seconds > 0 && seconds < 60) return `<${duration(60)}`;
   return duration(seconds);
 }
 
@@ -497,12 +578,11 @@ function renderAttendance(data) {
     const totals = document.createElement('span');
     totals.className = 'period-totals';
     const total = document.createElement('strong');
-    total.textContent = period === current ? periodHours.format(period.total) : duration(period.total * 3600);
+    total.textContent = duration(period.total * 3600);
     totals.append(total);
     if (target != null) {
       const status = document.createElement('small');
-      const targetLabel = period === current ? periodHours.format(target / 3600) : duration(target);
-      status.textContent = period.total * 3600 >= target ? 'Target reached' : `Target · ${targetLabel}`;
+      status.textContent = period.total * 3600 >= target ? 'Target reached' : `Target · ${duration(target)}`;
       totals.append(status);
     }
     summary.append(description, totals);
@@ -517,6 +597,7 @@ function renderAttendanceDays(period, expandedDays, data) {
   container.className = 'attendance-days';
   const dateFormat = new Intl.DateTimeFormat('en-US', {day:'numeric', month:'short', timeZone:'UTC'});
   const days = [...period.days].sort((a, b) => b.date.localeCompare(a.date));
+  if (!days.length) container.textContent = 'No daily attendance records yet.';
   for (const day of days) {
     const details = document.createElement('details');
     details.className = 'attendance-day';

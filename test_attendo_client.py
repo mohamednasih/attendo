@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import sqlite3
@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import urllib.error
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import attendo_client as client
 
@@ -32,6 +33,33 @@ class ClientTests(unittest.TestCase):
             client.Day('2026-11-15', 1, False),
         ))
 
+    def test_new_period_appears_at_campus_midnight_before_first_record(self):
+        closed = {'weekStart': '2026-11-09', 'weekEnd': '2026-11-15', 'total': 28,
+                  'daily': [{'date': f'2026-11-{day:02}', 'hours': 4, 'counted': True}
+                            for day in range(9, 16)]}
+        data = {'login': 'student', 'periods': [closed]}
+        target = '<p>Attendance target 30h per counted-day period</p>'
+        midnight = datetime(2026, 11, 16, tzinfo=ZoneInfo('Africa/Casablanca'))
+        midnight = midnight.astimezone(timezone(timedelta(hours=-5)))
+        before = midnight - timedelta(seconds=1)
+        self.assertIsNone(client.parse_profile(target + json.dumps(data), before).current)
+
+        profile = client.parse_profile(target + json.dumps(data), midnight)
+        self.assertEqual(profile.current, client.Period('2026-11-16', '2026-11-16', 0, ()))
+        self.assertEqual(profile.previous.total, 28)
+        self.assertEqual(profile.previous.counted_days, 7)
+        goal = client.attendance_goal(profile)
+        self.assertEqual(goal['remaining_days'], 7)
+        self.assertEqual(goal['daily_seconds'], 257 * 60)
+
+        first_day = {'date': '2026-11-16', 'hours': 1.5, 'counted': True}
+        data['periods'].insert(0, {'weekStart': '2026-11-16', 'weekEnd': '2026-11-16',
+                                   'total': 1.5, 'daily': [first_day]})
+        posted = client.parse_profile(target + json.dumps(data), midnight)
+        self.assertEqual(posted.current.total, 1.5)
+        self.assertEqual(posted.current.days, (client.Day('2026-11-16', 1.5, True),))
+        self.assertEqual(posted.previous, profile.previous)
+
     def test_today_recorded_hours_are_separate_from_estimate(self):
         for value in (2, 0, 2.5, None):
             data = json.loads(page())
@@ -53,31 +81,46 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(profile.current.days[0].hours, 2.5)
             self.assertEqual(profile.fetched_at, now)
 
-    def test_target_is_extracted_and_daily_recommendation_uses_remaining_days(self):
-        html = '<div>Attendance target</div><p>30h per counted-day period</p>' + page()
+    def test_daily_recommendation_comes_from_attendo(self):
+        html = ('<div>Attendance target</div><p>30h per counted-day period</p>'
+                '<p>Aim for about <strong>2h 46m</strong> per remaining counted day · 2 to go.</p>' + page())
         profile = client.parse_profile(html)
         self.assertEqual(profile.target_hours, 30)
         goal = client.attendance_goal(profile)
-        self.assertEqual(goal['daily_seconds'], 4 * 3600)
+        self.assertEqual(goal['daily_seconds'], 166 * 60)
+        self.assertEqual(goal['target_seconds'], 30 * 3600)
         self.assertEqual(goal['remaining_seconds'], 27.5 * 3600)
         self.assertEqual(goal['remaining_days'], 7)
 
     def test_missing_target_is_not_replaced_with_arbitrary_goal(self):
         self.assertIsNone(client.attendance_goal(client.parse_profile(page())))
 
-    def test_three_hours_across_two_days(self):
-        for counted_days, total, expected_hours in [(5, 27, 2), (6, 29, 1), (6, 30, 0)]:
-            with self.subTest(counted_days=counted_days, total=total):
-                period = SimpleNamespace(counted_days=counted_days, total=total)
-                goal = client.attendance_goal(SimpleNamespace(target_hours=30, current=period))
-                self.assertEqual(goal['daily_seconds'], expected_hours * 3600)
+    def test_daily_recommendation_without_period_target(self):
+        for value, expected_minutes in [('12h', 720), ('46m', 46), ('0h 05m', 5), ('0m', 0)]:
+            with self.subTest(value=value):
+                html = f'<p>Aim for about {value} per remaining counted day</p>' + page()
+                goal = client.attendance_goal(client.parse_profile(html))
+                self.assertEqual(goal['daily_seconds'], expected_minutes * 60)
+                self.assertIsNone(goal['target_seconds'])
 
-    def test_remaining_counted_day_recommendation(self):
-        from dataclasses import replace
-        profile = client.parse_profile(page())
-        days = tuple(client.Day(f'2026-11-{day:02}', 0, True) for day in range(10, 16))
-        profile = replace(profile, target_hours=30, current=client.Period('2026-11-10', '2026-11-15', 11, days))
-        self.assertEqual(client.attendance_goal(profile)['daily_seconds'], 19 * 3600)
+    def test_missing_or_unreadable_recommendation_uses_remaining_counted_days(self):
+        for value in ('', 'unavailable', '2h later'):
+            with self.subTest(value=value):
+                html = ('<p>Attendance target 30h per counted-day period</p>'
+                        f'<p>Aim for about {value} per remaining counted day</p>' + page(counted=True))
+                goal = client.attendance_goal(client.parse_profile(html))
+                self.assertEqual(goal['daily_seconds'], 275 * 60)
+                self.assertEqual(goal['target_seconds'], 30 * 3600)
+
+    def test_zero_daily_recommendation_or_remaining_time(self):
+        target = '<p>Attendance target 30h per counted-day period</p>'
+        recommended = '<p>Aim for about 0m per remaining counted day</p>'
+        profile = client.parse_profile(target + recommended + page())
+        self.assertEqual(client.attendance_goal(profile)['daily_seconds'], 0)
+        data = json.loads(page())
+        data['period']['total'] = 31
+        profile = client.parse_profile(target + json.dumps(data))
+        self.assertEqual(client.attendance_goal(profile)['daily_seconds'], 0)
 
     def test_missing_live_estimate_stays_missing(self):
         self.assertIsNone(client.parse_profile(page(None)).live_estimate)

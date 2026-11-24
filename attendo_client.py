@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import configparser
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from html.parser import HTMLParser
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -19,6 +18,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from zoneinfo import ZoneInfo
 
 DEFAULT_URL = "https://attendo.1337.ma/students/profile"
 LOGIN_URL = "https://attendo.1337.ma/api/students/auth/login"
@@ -65,6 +65,7 @@ class Snapshot:
     fetched_at: datetime
     target_hours: float | None = None
     today_hours: float | None = None
+    today_goal_minutes: int | None = None
 
 
 class _ScriptCollector(HTMLParser):
@@ -127,15 +128,20 @@ class _VisibleText(HTMLParser):
 
 def attendance_goal(profile):
     target = getattr(profile, 'target_hours', None)
-    if target is None:
+    daily_minutes = getattr(profile, 'today_goal_minutes', None)
+    if target is None and daily_minutes is None:
         return None
     current = getattr(profile, 'current', None)
     remaining_days = max(0, 7 - current.counted_days) if current else 7
-    remaining_hours = max(0, target - current.total) if current else target
-    return {'target_seconds': target * 3600,
-            'remaining_seconds': remaining_hours * 3600,
+    recorded_hours = current.total if current else 0
+    remaining_seconds = max(0, target - recorded_hours) * 3600 if target is not None else None
+    if daily_minutes is None and current and remaining_days:
+        remaining_minutes = timedelta(seconds=remaining_seconds) // timedelta(minutes=1)
+        daily_minutes = remaining_minutes // remaining_days
+    return {'target_seconds': target * 3600 if target is not None else None,
+            'remaining_seconds': remaining_seconds,
             'remaining_days': remaining_days,
-            'daily_seconds': math.ceil(remaining_hours / remaining_days) * 3600 if remaining_days else None}
+            'daily_seconds': daily_minutes * 60 if daily_minutes is not None else None}
 
 
 def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
@@ -170,14 +176,16 @@ def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
         for day in daily:
             if not isinstance(day, dict):
                 continue
-            date, counted = day.get('date'), day.get('counted')
+            day_date, counted = day.get('date'), day.get('counted')
             hours = day.get('hours', day.get('hoursLogged'))
-            if isinstance(date, str) and isinstance(counted, bool) and type(hours) in (int, float):
-                days.append(Day(date, float(hours), counted))
+            if isinstance(day_date, str) and isinstance(counted, bool) and type(hours) in (int, float):
+                days.append(Day(day_date, float(hours), counted))
         periods.append(Period(start, end, float(total), tuple(days)))
     if not periods:
         raise AttendoError("Could not find attendance periods in the profile page; the site may have changed.")
 
+    periods.sort(key=lambda period: period.start)
+    fetched_at = fetched_at or datetime.now().astimezone()
     # Attendo closes a period after seven counted days.
     if periods[-1].counted_days < 7:
         current = periods[-1]
@@ -185,22 +193,36 @@ def parse_profile(html: str, fetched_at: datetime | None = None) -> Snapshot:
     else:
         current = None
         previous = periods[-1]
+        today = fetched_at.astimezone(ZoneInfo('Africa/Casablanca')).date()
+        last_day = date.fromisoformat(previous.end[:10])
+        if last_day < today:
+            # The next period is already underway before Attendo posts its first day.
+            start = last_day + timedelta(days=1)
+            current = Period(start.isoformat(), today.isoformat(), 0, ())
 
     visible = _VisibleText()
     visible.feed(html)
+    text = ' '.join(visible.parts)
     target_match = re.search(r'Attendance target\s+(\d+(?:\.\d+)?)\s*h\s+per counted-day period',
-                             ' '.join(visible.parts), re.IGNORECASE)
+                             text, re.IGNORECASE)
     target = float(target_match[1]) if target_match else None
     if target is not None and not 0 < target < 10000:
         target = None
+    daily_match = re.search(r'\bAim for about\s+(?:(\d+)\s*h\s*)?(?:(\d+)\s*m)?'
+                            r'\s*per remaining counted day\b', text, re.IGNORECASE)
+    daily_minutes = None
+    if daily_match and any(daily_match.groups()):
+        hours, minutes = daily_match.groups(default='0')
+        daily_minutes = int(hours) * 60 + int(minutes)
     return Snapshot(
         today_hours=today_hours,
+        today_goal_minutes=daily_minutes,
         target_hours=target,
         login=login,
         current=current,
         previous=previous,
         live_estimate=estimate,
-        fetched_at=fetched_at or datetime.now().astimezone(),
+        fetched_at=fetched_at,
     )
 
 

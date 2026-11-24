@@ -95,14 +95,27 @@
       <div class="metric-value" id="logged">—</div>
       <p>Total log time minus observed screen locks</p>
       <section id="goal-panel" aria-labelledby="goal-title">
-        <div class="goal-line"><h3 id="goal-title">Today’s goal</h3><strong id="goal-label">—</strong></div>
+        <div class="goal-line">
+          <h3 id="goal-title">Today’s goal</h3>
+          <div class="goal-actions">
+            <strong id="goal-label">—</strong>
+            <button class="goal-link" type="button" id="edit-goal" aria-label="Edit daily goal" aria-controls="goal-editor" aria-expanded="false" disabled>Edit</button>
+          </div>
+        </div>
         <div class="progress"><div id="progress"></div></div>
         <div class="goal-foot"><span id="remaining">Waiting for your attendance</span><span id="percent">—</span></div>
-        <details class="goal-note">
-          <summary>Why the target differs</summary>
-          <p>Xattendo’s daily target can differ from Attendo’s because Attendo calculates it incorrectly.</p>
-          <p>Xattendo divides the hours you still need by the counted days left and rounds up.</p>
-        </details>
+        <form id="goal-editor" aria-label="Personal daily target" hidden>
+          <div class="goal-fields">
+            <label>Hours<input id="goal-hours" type="number" min="0" step="1" inputmode="numeric" required></label>
+            <label>Minutes<input id="goal-minutes" type="number" min="0" max="59" step="1" inputmode="numeric" required></label>
+          </div>
+          <div class="goal-actions">
+            <button class="button" type="submit">Save goal</button>
+            <button class="goal-link" type="button" id="cancel-goal">Cancel</button>
+          </div>
+          <button class="goal-link" type="button" id="reset-goal" hidden>Use recommended goal</button>
+          <p id="goal-error" role="alert" hidden></p>
+        </form>
       </section>
     </article>
     <div id="overview-period" class="period-slot">
@@ -132,7 +145,7 @@
       <div id="hourly-visual">
         <div id="hourly-chart" hidden>
           <div class="hourly-plot">
-            <div class="hour-axis" aria-hidden="true"><span id="hour-max"></span><span id="hour-mid"></span><span>00:00</span></div>
+            <div class="hour-axis" aria-hidden="true"><span id="hour-max"></span><span id="hour-mid"></span><span>00h:00m</span></div>
             <div class="hour-bars" id="hour-bars" role="radiogroup" aria-label="Locked minutes by hour"></div>
           </div>
           <div class="hourly-footer"><output id="hour-value"></output><span class="hour-upcoming" id="hour-upcoming" hidden>Upcoming hours</span></div>

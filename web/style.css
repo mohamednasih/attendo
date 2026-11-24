@@ -146,9 +146,14 @@ h1 { margin: 0; font-size: 27px; line-height: 1.3; font-weight: 650; letter-spac
 .goal-line { flex-wrap: wrap; }
 .goal-line h3 { margin: 0; color: var(--ink); font-size: 14px; font-weight: 600; }
 .goal-line strong { color: var(--ink); font-size: 14px; font-weight: 600; white-space: nowrap; }
-.goal-note { margin-top: 8px; font-size: 12px; color: var(--secondary); }
-.goal-note summary { width: fit-content; padding-block: 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.goal-note p { margin: 4px 0 0; color: var(--secondary); }
+.goal-actions, .goal-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.goal-link { border: 0; background: none; padding: 4px 0; color: var(--secondary); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.goal-link:hover { color: var(--ink); }
+#goal-editor { display: grid; justify-items: start; gap: 10px; margin-top: 12px; }
+.goal-fields label { display: grid; gap: 3px; color: var(--secondary); font-size: 12px; }
+.goal-fields input { width: 7ch; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 14px; }
+#goal-editor .button { background: var(--active); color: var(--active-text); border-color: var(--active); }
+#goal-error { margin: 0; color: var(--error); font-size: 12px; }
 .progress { height: 4px; margin: 8px 0; border-radius: 999px; overflow: hidden; background: var(--selected); }
 .progress div { height: 100%; background: var(--logged); width: 0; }
 .history, .attendance { margin-top: var(--section-gap); }
@@ -177,7 +182,7 @@ tr:last-child td { border-bottom: 0; }
 .hourly-heading a { color: var(--secondary); font-size: 12px; text-decoration: none; }
 .hourly-heading a:hover { text-decoration: underline; }
 #hourly-empty { margin-top: 16px; }
-.hourly-plot { display: grid; grid-template-columns: 5ch minmax(0, 1fr); gap: 10px; margin: 22px 0 28px; height: clamp(88px, calc(13vh / var(--dashboard-scale, 1)), 136px); font: 11px/1 ui-monospace, monospace; color: var(--muted); }
+.hourly-plot { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px; margin: 22px 0 28px; height: clamp(88px, calc(13vh / var(--dashboard-scale, 1)), 136px); font: 11px/1 ui-monospace, monospace; color: var(--muted); }
 .hour-axis { display: flex; flex-direction: column; justify-content: space-between; text-align: right; margin-block: -.5em; }
 .hour-bars { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; border-block: 1px solid var(--border); }
 .hour-slot { position: relative; min-width: 0; }
@@ -202,7 +207,7 @@ tr:last-child td { border-bottom: 0; }
   isolation: isolate;
   display: grid;
   place-content: center;
-  width: 112px;
+  width: 136px;
   max-width: 100%;
   align-self: center;
   margin-block: 8px;
@@ -280,6 +285,7 @@ footer { margin-top: 12px; color: var(--muted); font-size: 13px; }
 }
 @media (max-width: 480px) {
   :root { --section-gap: 16px; }
+  .overview-summary, .detail-summary { grid-template-columns: minmax(0, 1fr); }
   .detail-readings { row-gap: 0; }
   .detail-readings .summary-column {
     display: grid;

@@ -14,7 +14,7 @@ import threading
 import time
 from zoneinfo import ZoneInfo
 
-from logged_time import DEFAULT_ARCHIVE, DEFAULT_STATE, read_state
+from logged_time import DEFAULT_ARCHIVE, DEFAULT_STATE, duration, read_state
 
 DEFAULT_HISTORY = Path.home() / '.local/state/logged-time/history'
 OPEN_LOCK_CHECKPOINT_SECONDS = 10
@@ -315,10 +315,6 @@ def list_locks(directory, username, state, archive, day, zone, now, *, period=No
 
 
 def format_locks(data):
-    def duration(seconds):
-        value = int(seconds)
-        return f'{value // 3600:02d}:{value // 60 % 60:02d}:{value % 60:02d}'
-
     lines = [f"LOCK PERIODS · {data['date']} · {data['username']} · {data['timezone']}", '',
              'Start      End        Duration']
     for period in data['periods']:

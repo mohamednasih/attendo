@@ -8,9 +8,10 @@ const Me = imports.misc.extensionUtils.getCurrentExtension();
 function duration(seconds) {
     if (seconds === null || seconds === undefined)
         return 'unavailable';
-    const value = Math.max(0, Math.floor(seconds));
-    return [Math.floor(value / 3600), Math.floor(value / 60) % 60, value % 60]
-        .map(n => String(n).padStart(2, '0')).join(':');
+    const totalMinutes = Math.max(0, Math.floor(seconds / 60));
+    const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const minutes = String(totalMinutes % 60).padStart(2, '0');
+    return `${hours}h:${minutes}m`;
 }
 
 class LoggedTime {

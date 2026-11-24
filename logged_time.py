@@ -14,6 +14,13 @@ DEFAULT_STATE = Path('/run/42-lock/seat0.json')
 DEFAULT_ARCHIVE = Path.home() / '.local/state/logged-time/locks.sqlite3'
 
 
+def duration(seconds):
+    if seconds is None:
+        return 'unavailable'
+    hours, minutes = divmod(int(seconds) // 60, 60)
+    return f'{hours:02d}h:{minutes:02d}m'
+
+
 def timestamp(value):
     try:
         result = float(value)

@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 import attendo_client as client
 import intra_client
 
-from logged_time import DEFAULT_ARCHIVE, DEFAULT_STATE, locked_seconds, read_state
+from logged_time import DEFAULT_ARCHIVE, DEFAULT_STATE, duration, locked_seconds, read_state
 from shared_history import DEFAULT_HISTORY, HistoryCollector, fetch_history, legacy_history
 
 
@@ -114,13 +114,6 @@ def report(profile, day, zone, intervals, now, warnings, *, intra_estimate=None)
         'warnings': warnings + (['Observed lock history may be incomplete; collectors must run on every workstation.'] if estimated else [])
         + (['Lock duration exceeds the attendance total; wait for a fresh total or verify its scope.'] if difference is not None and difference < 0 else []),
     }
-
-
-def duration(seconds):
-    if seconds is None:
-        return 'unavailable'
-    value = int(seconds)
-    return f'{value // 3600:02d}:{value // 60 % 60:02d}:{value % 60:02d}'
 
 
 def format_report(data, refresh=None):
