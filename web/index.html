@@ -66,14 +66,14 @@
     <div class="settings-actions"><button class="button">Done</button></div>
   </form>
 </dialog>
-<div id="daily-session" hidden>
-  <dl class="card session-details" id="session-details" aria-label="Session details" hidden>
-    <div><dt>Username</dt><dd id="session-username">—</dd></div>
-    <div><dt>Workstation</dt><dd id="session-workstation">—</dd></div>
-  </dl>
-</div>
 <div class="toolbar">
   <h1 id="page-title">Overview</h1>
+  <div id="daily-session" hidden>
+    <dl class="card session-details" id="session-details" aria-label="Session details" hidden>
+      <div><dt>Username</dt><dd id="session-username">—</dd></div>
+      <div><dt>Workstation</dt><dd id="session-workstation">—</dd></div>
+    </dl>
+  </div>
   <div class="toolbar-actions">
     <div class="day-controls">
       <div class="tabs" id="day-tabs" role="group" aria-label="Attendance day">
@@ -105,9 +105,9 @@
         </details>
       </section>
     </article>
-    <div id="overview-period">
+    <div id="overview-period" class="period-slot">
       <section class="card summary-column summary-current" id="current-period" aria-labelledby="period-progress-title">
-        <h2 id="period-progress-title">Current period</h2>
+        <h2 id="period-progress-title"><a href="#week" title="View week">Current period</a></h2>
         <p id="period-progress-dates"></p>
         <div class="period-gauge" id="period-gauge">
           <strong id="period-progress-total"></strong>
@@ -119,10 +119,10 @@
         </div>
       </section>
     </div>
-    <article class="card summary-column summary-locked" aria-labelledby="locked-title">
+    <article class="card summary-column" aria-labelledby="locked-title">
       <h2 id="locked-title">Total locked time</h2>
       <div class="metric-value" id="overview-locked">—</div>
-      <div class="metric-bottom">Observed screen locks for the selected day</div>
+      <p>From lock history</p>
     </article>
     <section class="card hourly-locks" id="overview-hours" aria-labelledby="hourly-title">
       <div class="hourly-heading">
@@ -132,7 +132,7 @@
       <div id="hourly-visual">
         <div id="hourly-chart" hidden>
           <div class="hourly-plot">
-            <div class="hour-axis" aria-hidden="true"><span id="hour-max"></span><span id="hour-mid"></span><span>0m</span></div>
+            <div class="hour-axis" aria-hidden="true"><span id="hour-max"></span><span id="hour-mid"></span><span>00:00</span></div>
             <div class="hour-bars" id="hour-bars" role="radiogroup" aria-label="Locked minutes by hour"></div>
           </div>
           <div class="hourly-footer"><output id="hour-value"></output><span class="hour-upcoming" id="hour-upcoming" hidden>Upcoming hours</span></div>
@@ -142,33 +142,48 @@
     </section>
   </section>
   <section id="details-page" aria-label="Details" hidden>
-    <div id="details-metrics">
-      <section class="card daily-result" id="detail-net-summary" aria-labelledby="detail-net-title">
-        <h2 id="detail-net-title">Net attendance</h2>
-        <div class="metric-value" id="daily-net">—</div>
-        <p class="daily-context"><time id="detail-date"></time><span id="detail-estimated" hidden>Estimated</span></p>
-        <p class="net-source" id="net-source" hidden></p>
-      </section>
-      <section class="card daily-totals" aria-labelledby="daily-totals-title">
-        <h2 id="daily-totals-title">Daily totals</h2>
-        <dl class="daily-breakdown">
-          <div id="intra-card"><dt>Total log time<small>42 Intra</small></dt><dd class="metric-value" id="intra-total">—</dd></div>
-          <div><dt>Total locked time<small>42-lock</small></dt><dd class="metric-value" id="locked">—</dd></div>
-          <div id="recorded-card">
-            <dt>Attendo recorded<small>1337 Attendo profile</small></dt>
-            <dd class="recorded-values">
-              <span class="metric-value" id="recorded">—</span>
-              <small id="recorded-expected" title="Net attendance rounds up at 35 minutes past the hour" hidden></small>
-            </dd>
-            <dd class="recorded-note" id="recorded-description" hidden></dd>
+    <section class="daily-report" aria-label="Daily attendance">
+      <div class="detail-summary">
+        <section class="card summary-column" id="detail-net-summary" aria-labelledby="detail-net-title">
+          <div class="card-top">
+            <h2 id="detail-net-title">Net attendance</h2>
+            <span class="pill" id="detail-estimated" hidden>Estimated</span>
           </div>
-          <div id="historical-card" hidden><dt>Recorded attendance<small>1337 Attendo profile</small></dt><dd class="metric-value" id="historical-total">—</dd></div>
-        </dl>
-      </section>
-    </div>
+          <div class="metric-value" id="daily-net">—</div>
+          <p class="reading-source" id="net-source" hidden></p>
+        </section>
+        <div id="detail-period" class="period-slot"></div>
+      </div>
+      <div class="detail-readings">
+        <div class="card summary-column" id="intra-card">
+          <h2>Total log time</h2>
+          <div class="metric-value" id="intra-total">—</div>
+          <p class="reading-source">From Intra</p>
+        </div>
+        <div class="card summary-column">
+          <h2>Total locked time</h2>
+          <div class="metric-value" id="locked">—</div>
+          <p class="reading-source">From lock history</p>
+        </div>
+        <div class="card summary-column" id="recorded-card">
+          <h2>Attendo recorded</h2>
+          <div id="recorded" class="metric-value">—</div>
+          <p class="reading-source">From Attendo</p>
+          <p class="reading-source" id="recorded-description" hidden></p>
+        </div>
+        <div class="card summary-column" id="historical-card" hidden>
+          <h2>Recorded attendance</h2>
+          <div class="metric-value" id="historical-total">—</div>
+          <p class="reading-source">From Attendo</p>
+        </div>
+      </div>
+    </section>
     <section class="card history" id="history" aria-labelledby="history-title">
-      <div class="section-heading"><h2 id="history-title">Lock history</h2><span class="count" id="count">0 periods</span></div>
-      <div id="history-graph"><p>Locked minutes by hour</p></div>
+      <div class="section-heading">
+        <div><h2 id="history-title">Lock history</h2><p>Locked minutes by hour · <time id="detail-date"></time></p></div>
+        <span class="count" id="count">0 periods</span>
+      </div>
+      <div id="history-graph"></div>
       <details id="lock-periods">
         <summary>Lock and unlock times</summary>
         <div class="table-wrap" tabindex="0" role="region" aria-label="Lock periods">
@@ -179,15 +194,12 @@
         </div>
       </details>
       <details class="history-help">
-        <summary>Missing lock history?</summary>
+        <summary>Sources and missing locks</summary>
+        <p>42 Intra supplies daily log totals in <code>locations_stats.json</code>. Xattendo combines <code>/run/42-lock/seat0.json</code> with saved workstation history and counts overlapping locks once. Attendo’s recorded hours already exclude locks.</p>
         <p>Log in again at every workstation you previously used and let the app run there to collect any lock records still available on that station.</p>
+        <ul id="warnings"></ul>
       </details>
     </section>
-    <details class="notes"><summary>About these numbers</summary>
-      <p>42 Intra provides daily location totals in <code>locations_stats.json</code>. Xattendo combines screen-lock intervals from <code>/run/42-lock/seat0.json</code> with saved workstation history and counts overlapping intervals once. Unobserved locks may be missing.</p>
-      <p>Attendo’s recorded hours already exclude locks. Reports update when you refresh.</p>
-      <ul id="warnings"></ul>
-    </details>
   </section>
   <section id="week-page" aria-label="Week" hidden>
     <section class="card time-chart" aria-labelledby="time-chart-title">

@@ -25,7 +25,7 @@ function showPage() {
   const active = pageLinks.find(link => link.hash === pageHash) ?? pageLinks[0];
   const details = active.hash === '#details';
   placeIn('goal-panel', details ? 'detail-net-summary' : 'logged-card');
-  placeIn('current-period', details ? 'details-metrics' : 'overview-period');
+  placeIn('current-period', details ? 'detail-period' : 'overview-period');
   placeIn('hourly-visual', details ? 'history-graph' : 'overview-hours');
   if (hash === '#history') $('lock-periods').open = true;
   $('daily-session').hidden = active.hash === '#week';
@@ -93,23 +93,25 @@ let dashboardRequest = 0;
 const dayReports = new Map();
 // At 35 minutes past a full hour, attendance rounds up to the next hour.
 const attendanceRoundingOffsetSeconds = (60 - 35) * 60;
-const duration = value => value == null ? '—' : `${Math.floor(value / 3600)}h ${String(Math.floor(value % 3600 / 60)).padStart(2,'0')}m`;
-function renderMetricDuration(element, seconds) {
-  element.innerHTML = duration(seconds).replace(/h (\d+)m$/, '<small>h:</small>$1<small>m</small>');
+function duration(seconds) {
+  if (seconds == null) return '—';
+  const totalMinutes = Math.floor(seconds / 60);
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+  const minutes = String(totalMinutes % 60).padStart(2, '0');
+  return `${hours}:${minutes}`;
 }
 const campusClock = new Intl.DateTimeFormat('en-GB', {timeZone: zone, hour: '2-digit', minute: '2-digit'});
 const clock = value => campusClock.format(new Date(value));
-const refreshClock = new Intl.DateTimeFormat('en-GB', {timeZone: zone, timeStyle: 'medium'});
 function showRefreshTime(date) {
   const label = $('last-refresh');
   if (date) label.dateTime = date.toISOString();
   else label.removeAttribute('datetime');
-  label.textContent = date ? `Last refreshed ${refreshClock.format(date)}` : '';
+  label.textContent = date ? `Last refreshed ${campusClock.format(date)}` : '';
 }
 function updateGoal(report) {
   const target = report?.attendance_goal?.daily_seconds;
   const logged = report?.logged_seconds;
-  $('goal-label').textContent = target == null ? 'Unavailable' : `${target / 3600}h`;
+  $('goal-label').textContent = target == null ? 'Unavailable' : duration(target);
   let message = target == null ? 'Attendo recommendation unavailable' : 'Waiting for your attendance';
   let percent = null;
   if (target != null && logged != null) {
@@ -203,39 +205,35 @@ function renderDashboard(data) {
   $('session-username').textContent = r?.username || '—';
   $('session-workstation').textContent = r?.current_workstation || '—';
   $('session-details').hidden = !r?.username && !r?.current_workstation;
-  renderMetricDuration($('logged'), r?.logged_seconds);
-  renderMetricDuration($('daily-net'), r?.logged_seconds);
+  $('logged').textContent = duration(r?.logged_seconds);
+  $('daily-net').textContent = duration(r?.logged_seconds);
   const estimated = r?.time_kind === 'estimated' && r.logged_seconds != null;
   $('net-kind').hidden = !estimated;
   $('detail-estimated').hidden = !estimated;
   $('detail-date').dateTime = selectedDay;
   $('detail-date').textContent = chartDayFormat.format(new Date(selectedDay));
   const netSource = {
-    '42_intra_locations': '42 Intra log time − observed locks',
-    'todayHoursEstimation': 'Attendo live estimate − observed locks',
-    'daily.hours': '1337 Attendo daily record'
+    '42_intra_locations': 'From Intra, minus observed locks',
+    'todayHoursEstimation': 'From Attendo’s live estimate, minus observed locks',
+    'daily.hours': 'From Attendo’s daily record'
   }[r?.attendo_source];
   $('net-source').textContent = netSource ?? '';
   $('net-source').hidden = !netSource;
   $('historical-total').textContent = r?.time_kind === 'recorded' ? duration(r.attendo_seconds) : '—';
   const recorded = r?.attendo_recorded_seconds;
-  const netSeconds = r?.logged_seconds;
-  const expected = $('recorded-expected');
-  expected.hidden = netSeconds == null;
-  expected.textContent = netSeconds == null ? '' : `Should be ${Math.floor((netSeconds + attendanceRoundingOffsetSeconds) / 3600)}h`;
-  $('recorded').textContent = recorded != null ? `${Math.floor(recorded / 3600)}h` : r ? 'Not yet recorded' : '—';
+  $('recorded').textContent = recorded != null ? duration(recorded) : r ? 'Not yet recorded' : '—';
   $('recorded').classList.toggle('unposted', recorded == null);
   const latestRecorded = (r?.attendance_periods || []).flatMap(period => period.days)
     .filter(day => day.date < selectedDay).sort((a, b) => b.date.localeCompare(a.date))[0];
   const recordedNote = $('recorded-description');
   recordedNote.hidden = recorded != null || (r != null && !latestRecorded);
   recordedNote.textContent = !r ? 'Connect to Attendo and refresh'
-    : latestRecorded ? `Last recorded · ${periodDateFormat.format(new Date(latestRecorded.date))} · ${latestRecorded.hours}h` : '';
-  renderMetricDuration($('intra-total'), totalLogTime(r));
+    : latestRecorded ? `Last recorded · ${periodDateFormat.format(new Date(latestRecorded.date))} · ${duration(latestRecorded.hours * 3600)}` : '';
+  $('intra-total').textContent = duration(totalLogTime(r));
   const lockedSeconds = locks?.locked_seconds ?? r?.locked_seconds;
-  renderMetricDuration($('overview-locked'), lockedSeconds);
+  $('overview-locked').textContent = duration(lockedSeconds);
   renderHourlyLocks(locks?.hourly_locks);
-  renderMetricDuration($('locked'), lockedSeconds);
+  $('locked').textContent = duration(lockedSeconds);
   const periods = locks?.periods || [];
   $('count').textContent = `${periods.length} period${periods.length===1?'':'s'}`;
   renderLockRows($('periods'), locks);
@@ -351,6 +349,7 @@ function renderLockRows(body, locks) {
 
 const periodDateFormat = new Intl.DateTimeFormat('en-US', {month:'short', day:'numeric', timeZone:'UTC'});
 const chartDayFormat = new Intl.DateTimeFormat('en-GB', {weekday:'short', month:'short', day:'numeric', timeZone:'UTC'});
+const periodHours = new Intl.NumberFormat('en-GB', {style: 'unit', unit: 'hour', unitDisplay: 'long'});
 
 function renderCurrentPeriod(period, target, dateRange) {
   $('period-gauge').hidden = !period;
@@ -364,17 +363,16 @@ function renderCurrentPeriod(period, target, dateRange) {
   const reached = hasTarget && seconds >= target;
   const progress = hasTarget ? Math.min(1, Math.max(0, seconds / target)) : 0;
   $('period-gauge').style.setProperty('--period-sweep', `${progress * 270}deg`);
-  const compactDuration = value => duration(value).replace(/ 00m$/, '');
-  $('period-progress-total').textContent = compactDuration(seconds);
-  $('period-progress-target').textContent = hasTarget ? `of ${compactDuration(target)}` : 'Recorded';
+  $('period-progress-total').textContent = period.total.toLocaleString('en-GB');
+  $('period-progress-target').textContent = hasTarget ? `of ${periodHours.format(target / 3600)}` : 'Hours recorded';
   $('period-progress-count').textContent = `${period.days.filter(day => day.counted).length} / 7 days counted`;
   $('period-progress-status').textContent = reached ? 'Target reached' : hasTarget ? 'In progress' : 'Target unavailable';
   $('period-progress-status').classList.toggle('target-reached', reached);
 }
 
 function chartDuration(seconds) {
-  if (seconds > 0 && seconds < 60) return '<1m';
-  return duration(seconds).replace(/^0h 0?/, '');
+  if (seconds > 0 && seconds < 60) return '<00:01';
+  return duration(seconds);
 }
 
 function renderHourlyLocks(hours) {
@@ -388,8 +386,8 @@ function renderHourlyLocks(hours) {
 
   const peak = Math.max(0, ...hours.map(hour => hour.locked_seconds ?? 0));
   const scaleMinutes = [10, 20, 30, 60].find(minutes => minutes * 60 >= peak) ?? 60;
-  $('hour-max').textContent = `${scaleMinutes}m`;
-  $('hour-mid').textContent = `${scaleMinutes / 2}m`;
+  $('hour-max').textContent = duration(scaleMinutes * 60);
+  $('hour-mid').textContent = duration(scaleMinutes * 60 / 2);
   $('hour-upcoming').hidden = hours.every(hour => hour.locked_seconds != null);
   const selected = hours.find(hour => hour.start === previous && hour.locked_seconds != null)
     ?? hours.find(hour => hour.locked_seconds === peak);
@@ -403,7 +401,7 @@ function renderHourlyLocks(hours) {
     const description = seconds == null ? `${hourLabel} · Upcoming` : `${hourLabel} · ${chartDuration(seconds)} locked`;
     slot.className = 'hour-slot';
     slot.title = description;
-    if (Number(time.slice(0, 2)) % 4 === 0) slot.dataset.tick = time.slice(0, 2);
+    if (Number(time.slice(0, 2)) % 4 === 0) slot.dataset.tick = time;
     input.type = 'radio';
     input.name = 'lock-hour';
     input.value = start;
@@ -499,11 +497,12 @@ function renderAttendance(data) {
     const totals = document.createElement('span');
     totals.className = 'period-totals';
     const total = document.createElement('strong');
-    total.textContent = duration(period.total * 3600);
+    total.textContent = period === current ? periodHours.format(period.total) : duration(period.total * 3600);
     totals.append(total);
     if (target != null) {
       const status = document.createElement('small');
-      status.textContent = period.total * 3600 >= target ? 'Target reached' : `of ${duration(target)} target`;
+      const targetLabel = period === current ? periodHours.format(target / 3600) : duration(target);
+      status.textContent = period.total * 3600 >= target ? 'Target reached' : `Target · ${targetLabel}`;
       totals.append(status);
     }
     summary.append(description, totals);
@@ -529,7 +528,7 @@ function renderAttendanceDays(period, expandedDays, data) {
     const name = document.createElement('span');
     name.textContent = dateFormat.format(new Date(day.date));
     const amount = document.createElement('strong');
-    amount.textContent = duration(day.hours * 3600).replace(/ 00m$/, '');
+    amount.textContent = duration(day.hours * 3600);
     const status = document.createElement('span');
     status.className = 'day-count-status';
     status.classList.toggle('counted', day.counted);
