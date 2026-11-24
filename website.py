@@ -40,6 +40,11 @@ def dashboard(day, refresh=False):
         ('locks', 'shared_history.py', ['list', '--json', '--date', day]),
     ):
         try:
+            if key == 'locks' and data['report']:
+                current = next((period for period in data['report'].get('attendance_periods', [])
+                                if period['label'] == 'Current period'), None)
+                if current:
+                    args.extend(['--period', current['start'][:10], current['end'][:10]])
             data[key] = command_json(script, args)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
             data['errors'].append(str(error))

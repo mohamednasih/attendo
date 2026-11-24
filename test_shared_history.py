@@ -207,6 +207,40 @@ class SharedTests(unittest.TestCase):
         self.assertEqual(data['locked_seconds'], 10)
         self.assertTrue(any('Current lock state unavailable' in w for w in data['warnings']))
 
+    def test_hourly_locks_split_an_open_lock_across_repeated_campus_hour(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        day = date(2026, 2, 15)
+        first_two = datetime(2026, 2, 15, 2, tzinfo=zone, fold=0).timestamp()
+        second_two = datetime(2026, 2, 15, 2, tzinfo=zone, fold=1).timestamp()
+        now = second_two + 300
+        with patch('shared_history.legacy_history', return_value=[(first_two + 3300, second_two)]), \
+             patch('shared_history.read_state', return_value=[(first_two + 3000, None)]):
+            data = list_locks(self.directory, 'student', None, None, day, zone, now)
+        hours = data['hourly_locks']
+        self.assertEqual(len(hours), 25)
+        self.assertEqual([h['locked_seconds'] for h in hours], [0, 0, 600, 300] + [None] * 21)
+        self.assertEqual(hours[2]['start'], '2026-02-15T02:00:00+01:00')
+        self.assertEqual(hours[3]['start'], '2026-02-15T02:00:00+00:00')
+        self.assertEqual(sum(h['locked_seconds'] or 0 for h in hours), data['locked_seconds'])
+
+    def test_period_chart_splits_observations_at_campus_midnight(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        midnight = datetime(2026, 11, 15, tzinfo=zone).timestamp()
+        now = midnight + 1800
+        writer = HistoryWriter(self.directory, 'student')
+        writer.observe([(midnight - 900, midnight + 600)], now)
+        with patch('shared_history.legacy_history', return_value=[(midnight - 300, midnight + 900)]), \
+             patch('shared_history.read_state', return_value=[(midnight + 1200, None)]):
+            data = list_locks(self.directory, 'student', None, None, date(2026, 11, 14), zone, now,
+                              period=(date(2026, 11, 13), date(2026, 11, 16)))
+        self.assertEqual(data['locked_seconds'], 900)
+        self.assertEqual(data['period_days'], [
+            {'date': '2026-11-13', 'locked_seconds': 0},
+            {'date': '2026-11-14', 'locked_seconds': 900},
+            {'date': '2026-11-15', 'locked_seconds': 1500},
+            {'date': '2026-11-16', 'locked_seconds': None},
+        ])
+
     def test_list_empty_and_future_day(self):
         zone = ZoneInfo('Africa/Casablanca')
         day = date(2026, 11, 15)

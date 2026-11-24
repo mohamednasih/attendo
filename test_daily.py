@@ -6,11 +6,19 @@ import json
 import unittest
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
-from daily import daily_total, day_window, report, main
+from daily import daily_total, day_window, period_log_totals, report, main
 from intra_client import parse_locations
 
 
 class DailyTests(unittest.TestCase):
+    def test_period_log_totals_keep_intra_zero_and_missing_dates_distinct(self):
+        period = SimpleNamespace(start='2026-10-30', end='2026-11-02')
+        locations = parse_locations({'2026-10-29': '02:00:00', '2026-10-30': '01:25:10.5',
+                                     '2026-11-01': '00:00:00', '2026-11-03': '04:00:00'})
+        self.assertEqual(period_log_totals(period, locations), {
+            '2026-10-30': 5110.5, '2026-10-31': None, '2026-11-01': 0, '2026-11-02': None,
+        })
+
     def test_yesterday_intra_estimate_keeps_attendo_recorded_total(self):
         zone = ZoneInfo('Africa/Casablanca')
         fetched = datetime(2026, 11, 15, 12, tzinfo=zone)

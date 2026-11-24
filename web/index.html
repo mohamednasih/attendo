@@ -24,14 +24,34 @@
     </div>
   </div>
 </section>
-<aside class="sidebar" id="sidebar" hidden><a class="brand" href="/">Xattendo</a><div class="space-label">WORKSPACE</div><a class="nav active" href="#overview" aria-current="location"><span>◷</span> Overview</a><a class="nav" href="#history"><span>▤</span> Lock history</a><a class="nav" href="#attendance"><span>▦</span> Attendance</a><a class="repo-support" href="https://github.com/mohamednasih/attendo" target="_blank" rel="noopener noreferrer" aria-label="Star this project on GitHub (opens in a new tab)"><svg class="repo-icon" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 1.72 2.64 1.22 3.28.93.1-.73.4-1.22.71-1.5-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.15A10.8 10.8 0 0 1 12 6.16c.96 0 1.92.13 2.82.38 2.15-1.46 3.1-1.15 3.1-1.15.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.64 5.27-5.15 5.55.4.35.76 1.03.76 2.08v3.11c0 .3.2.65.77.54A11.25 11.25 0 0 0 12 .75Z"/></svg><span>Star on GitHub</span><svg class="repo-star" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.78 5.63L21 9.54l-4.5 4.39 1.06 6.2L12 17.2l-5.56 2.93 1.06-6.2L3 9.54l6.22-.91Z"/></svg></a><div class="sidebar-bottom"><span class="local-dot"></span> Running locally<div>1337 · Attendo</div></div></aside>
-<main id="overview" hidden><header><span class="header-account" id="signed-in-account" hidden></span><div class="header-actions"><button class="button" id="open-settings" aria-haspopup="dialog" aria-controls="settings">Settings</button><span class="badge">LOCAL</span></div></header>
+<main id="dashboard" hidden>
+<header class="app-header">
+  <a class="brand" href="#overview">Xattendo</a>
+  <nav class="page-nav" aria-label="Dashboard pages">
+    <a href="#overview" aria-current="page">Overview</a>
+    <a href="#details">Details</a>
+    <a href="#week">Week</a>
+  </nav>
+  <a class="repo-support" href="https://github.com/mohamednasih/attendo" target="_blank" rel="noopener noreferrer" aria-label="Star on GitHub (opens in a new tab)">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="m12 3 2.78 5.63L21 9.54l-4.5 4.39 1.06 6.2L12 17.2l-5.56 2.93 1.06-6.2L3 9.54l6.22-.91Z"/></svg>
+    Star on GitHub
+  </a>
+  <div class="header-actions">
+    <button class="button" id="theme" type="button" aria-label="Switch theme">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <g class="theme-light"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></g>
+        <path class="theme-dark" d="M20.5 14A8.7 8.7 0 0 1 10 3.5 8.8 8.8 0 1 0 20.5 14Z"/>
+      </svg>
+    </button>
+    <button class="button" id="open-settings" aria-haspopup="dialog" aria-controls="settings">Settings</button>
+  </div>
+</header>
 <dialog class="card settings-dialog" id="settings" aria-labelledby="settings-title">
   <form method="dialog">
     <h2 id="settings-title">Settings</h2>
-    <label class="settings-field" for="theme">
-      Theme
-      <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+    <label class="settings-field" for="default-page">
+      Page to show on startup
+      <select id="default-page"><option value="overview">Overview</option><option value="details">Details</option></select>
     </label>
     <label class="settings-field" for="default-day">
       Day to show on startup
@@ -46,39 +66,142 @@
     <div class="settings-actions"><button class="button">Done</button></div>
   </form>
 </dialog>
-<div class="toolbar"><div class="tabs" role="group" aria-label="Attendance day"><button id="today" aria-pressed="true">Today</button><button id="yesterday" aria-pressed="false">Yesterday</button></div><button id="refresh" class="button">Refresh data</button></div>
-<div id="day-report" hidden>
-<section class="cards" id="daily-cards" aria-label="Daily attendance"><article class="hero card" id="logged-card"><div class="card-top"><h2>Net attendance</h2><span class="pill" id="kind">Estimated</span></div><div class="metric-value" id="logged">--<span>h</span> --<span>m</span></div><p>Total attendance − screen-lock time</p><div id="goal-panel">
-  <div class="goal-line"><span>Hours to log today</span><strong id="goal-label">—</strong></div>
-  <div class="progress"><div id="progress"></div></div>
-  <div class="goal-foot"><span id="remaining">Waiting for your attendance</span><span id="percent">—</span></div>
-  <details class="goal-note">
-    <summary>Why the target differs</summary>
-    <p>Xattendo’s daily target can differ from Attendo’s because Attendo calculates it incorrectly.</p>
-    <p>Xattendo divides the hours you still need by the counted days left and rounds up.</p>
-  </details>
-</div></article>
-<article class="card metric" id="recorded-card"><h2>Attendo recorded</h2><div class="metric-value recorded-value"><span id="recorded">—</span> <span id="recorded-expected" hidden></span></div><p id="recorded-description">Today’s recorded campus attendance</p><div class="metric-bottom">Already excludes screen locks</div></article>
-<article class="card metric" id="intra-card"><h2>Intra total time</h2><div class="metric-value" id="intra-total">—</div><p>Campus location time for this day</p><div class="metric-bottom">Includes screen-lock time</div></article>
-<article class="card metric" id="historical-card" hidden><h2>Recorded attendance</h2><div class="metric-value" id="historical-total">—</div><p>Recorded attendance for this day</p><div class="metric-bottom">From your Attendo account</div></article>
-</section>
-<section class="card history" id="history"><div class="section-heading"><div class="lock-heading"><h2>Lock history</h2><span class="lock-total">Total locked time <strong id="locked">—</strong></span></div><span class="count" id="count">0 periods</span></div><div class="table-wrap" tabindex="0" role="region" aria-label="Lock periods"><table><thead><tr><th scope="col">Locked at</th><th scope="col">Unlocked at</th><th scope="col">Duration</th><th scope="col">Status</th></tr></thead><tbody id="periods"><tr><td colspan="4" class="empty">Loading observed lock periods…</td></tr></tbody></table></div><p class="history-help"><strong>Missing lock history?</strong> Log in again at every workstation you previously used and let the app run there to collect any lock records still available on that station.</p></section>
-<section class="card period-progress" id="current-period-progress" aria-labelledby="period-progress-title" hidden>
-  <div class="period-progress-info">
-    <h2 id="period-progress-title">Current period</h2>
-    <p id="period-progress-dates"></p>
-  </div>
-  <div class="period-gauge" id="period-gauge">
-    <strong id="period-progress-total"></strong>
-    <span id="period-progress-target"></span>
-  </div>
-  <div class="period-badges">
-    <span class="period-badge" id="period-progress-status"></span>
-    <span class="period-count" id="period-progress-count"></span>
-  </div>
-</section>
-<section class="card attendance" id="attendance"><div class="section-heading"><div><h2>Attendance</h2></div></div><div id="attendance-periods" class="attendance-periods">Connect to Attendo to see your recorded attendance.</div><p class="attendance-help">Expand a day to see its attendance and lock history. Recorded totals already exclude locks.</p></section><details class="notes"><summary>About these numbers</summary><p>Today and yesterday show an estimate from the 42 Intra location total minus observed locks. Attendo’s recorded totals already exclude locks. Reports update when you refresh. Lock history may be incomplete.</p><ul id="warnings"></ul></details>
+<div id="daily-session" hidden>
+  <dl class="card session-details" id="session-details" aria-label="Session details" hidden>
+    <div><dt>Username</dt><dd id="session-username">—</dd></div>
+    <div><dt>Workstation</dt><dd id="session-workstation">—</dd></div>
+  </dl>
 </div>
-<footer><div id="status" role="status" aria-live="polite">Loading your attendance…</div></footer></main>
-
+<div class="toolbar">
+  <h1 id="page-title">Overview</h1>
+  <div class="toolbar-actions">
+    <div class="day-controls">
+      <div class="tabs" id="day-tabs" role="group" aria-label="Attendance day">
+        <button id="today" aria-pressed="true">Today</button>
+        <button id="yesterday" aria-pressed="false">Yesterday</button>
+      </div>
+      <button id="refresh" class="button">Refresh data</button>
+    </div>
+    <time id="last-refresh" title="Campus time (Africa/Casablanca)" hidden></time>
+  </div>
+</div>
+<div id="day-report" hidden>
+  <section id="overview-page" class="overview-summary" aria-label="Overview">
+    <article class="card summary-column" id="logged-card" aria-labelledby="net-title">
+      <div class="card-top">
+        <h2 id="net-title">Net attendance</h2>
+        <span class="pill" id="net-kind" hidden>Estimated</span>
+      </div>
+      <div class="metric-value" id="logged">—</div>
+      <p>Total log time minus observed screen locks</p>
+      <section id="goal-panel" aria-labelledby="goal-title">
+        <div class="goal-line"><h3 id="goal-title">Today’s goal</h3><strong id="goal-label">—</strong></div>
+        <div class="progress"><div id="progress"></div></div>
+        <div class="goal-foot"><span id="remaining">Waiting for your attendance</span><span id="percent">—</span></div>
+        <details class="goal-note">
+          <summary>Why the target differs</summary>
+          <p>Xattendo’s daily target can differ from Attendo’s because Attendo calculates it incorrectly.</p>
+          <p>Xattendo divides the hours you still need by the counted days left and rounds up.</p>
+        </details>
+      </section>
+    </article>
+    <div id="overview-period">
+      <section class="card summary-column summary-current" id="current-period" aria-labelledby="period-progress-title">
+        <h2 id="period-progress-title">Current period</h2>
+        <p id="period-progress-dates"></p>
+        <div class="period-gauge" id="period-gauge">
+          <strong id="period-progress-total"></strong>
+          <span id="period-progress-target"></span>
+        </div>
+        <div class="period-badges">
+          <span class="period-badge" id="period-progress-status"></span>
+          <span class="period-count" id="period-progress-count"></span>
+        </div>
+      </section>
+    </div>
+    <article class="card summary-column summary-locked" aria-labelledby="locked-title">
+      <h2 id="locked-title">Total locked time</h2>
+      <div class="metric-value" id="overview-locked">—</div>
+      <div class="metric-bottom">Observed screen locks for the selected day</div>
+    </article>
+    <section class="card hourly-locks" id="overview-hours" aria-labelledby="hourly-title">
+      <div class="hourly-heading">
+        <div><h2 id="hourly-title">Screen locks by hour</h2><p id="hourly-date"></p></div>
+        <a href="#history">Lock history <span aria-hidden="true">→</span></a>
+      </div>
+      <div id="hourly-visual">
+        <div id="hourly-chart" hidden>
+          <div class="hourly-plot">
+            <div class="hour-axis" aria-hidden="true"><span id="hour-max"></span><span id="hour-mid"></span><span>0m</span></div>
+            <div class="hour-bars" id="hour-bars" role="radiogroup" aria-label="Locked minutes by hour"></div>
+          </div>
+          <div class="hourly-footer"><output id="hour-value"></output><span class="hour-upcoming" id="hour-upcoming" hidden>Upcoming hours</span></div>
+        </div>
+        <p id="hourly-empty" hidden>Hourly lock history is unavailable.</p>
+      </div>
+    </section>
+  </section>
+  <section id="details-page" aria-label="Details" hidden>
+    <div id="details-metrics">
+      <section class="card daily-result" id="detail-net-summary" aria-labelledby="detail-net-title">
+        <h2 id="detail-net-title">Net attendance</h2>
+        <div class="metric-value" id="daily-net">—</div>
+        <p class="daily-context"><time id="detail-date"></time><span id="detail-estimated" hidden>Estimated</span></p>
+        <p class="net-source" id="net-source" hidden></p>
+      </section>
+      <section class="card daily-totals" aria-labelledby="daily-totals-title">
+        <h2 id="daily-totals-title">Daily totals</h2>
+        <dl class="daily-breakdown">
+          <div id="intra-card"><dt>Total log time<small>42 Intra</small></dt><dd class="metric-value" id="intra-total">—</dd></div>
+          <div><dt>Total locked time<small>42-lock</small></dt><dd class="metric-value" id="locked">—</dd></div>
+          <div id="recorded-card">
+            <dt>Attendo recorded<small>1337 Attendo profile</small></dt>
+            <dd class="recorded-values">
+              <span class="metric-value" id="recorded">—</span>
+              <small id="recorded-expected" title="Net attendance rounds up at 35 minutes past the hour" hidden></small>
+            </dd>
+            <dd class="recorded-note" id="recorded-description" hidden></dd>
+          </div>
+          <div id="historical-card" hidden><dt>Recorded attendance<small>1337 Attendo profile</small></dt><dd class="metric-value" id="historical-total">—</dd></div>
+        </dl>
+      </section>
+    </div>
+    <section class="card history" id="history" aria-labelledby="history-title">
+      <div class="section-heading"><h2 id="history-title">Lock history</h2><span class="count" id="count">0 periods</span></div>
+      <div id="history-graph"><p>Locked minutes by hour</p></div>
+      <details id="lock-periods">
+        <summary>Lock and unlock times</summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Lock periods">
+          <table>
+            <thead><tr><th scope="col">Locked at</th><th scope="col">Unlocked at</th><th scope="col">Duration</th><th scope="col">Status</th></tr></thead>
+            <tbody id="periods"><tr><td colspan="4" class="empty">Loading observed lock periods…</td></tr></tbody>
+          </table>
+        </div>
+      </details>
+      <details class="history-help">
+        <summary>Missing lock history?</summary>
+        <p>Log in again at every workstation you previously used and let the app run there to collect any lock records still available on that station.</p>
+      </details>
+    </section>
+    <details class="notes"><summary>About these numbers</summary>
+      <p>42 Intra provides daily location totals in <code>locations_stats.json</code>. Xattendo combines screen-lock intervals from <code>/run/42-lock/seat0.json</code> with saved workstation history and counts overlapping intervals once. Unobserved locks may be missing.</p>
+      <p>Attendo’s recorded hours already exclude locks. Reports update when you refresh.</p>
+      <ul id="warnings"></ul>
+    </details>
+  </section>
+  <section id="week-page" aria-label="Week" hidden>
+    <section class="card time-chart" aria-labelledby="time-chart-title">
+      <h2 id="time-chart-title">Total log time by day</h2>
+      <p id="time-chart-period"></p>
+      <div id="time-chart-legend" hidden>
+        <span class="legend-unlocked">Unlocked</span>
+        <span class="legend-locked">Screen locked</span>
+      </div>
+      <ol id="time-chart-days"></ol>
+    </section>
+    <section class="card attendance" id="attendance"><div class="section-heading"><div><h2>Attendance</h2></div></div><div id="attendance-periods" class="attendance-periods">Connect to Attendo to see your recorded attendance.</div><p class="attendance-help">Expand a day to see its attendance and lock history. Recorded totals already exclude locks.</p></section>
+  </section>
+</div>
+<footer><div id="status" role="status" aria-live="polite">Loading your attendance…</div></footer>
+</main>
 </body></html>

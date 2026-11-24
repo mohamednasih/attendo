@@ -258,12 +258,18 @@ def lock_periods(intervals, start, end):
     return merged
 
 
-def list_locks(directory, username, state, archive, day, zone, now):
-    start = datetime.combine(day, day_time(), zone).timestamp()
-    end = min(now, datetime.combine(day + timedelta(days=1), day_time(), zone).timestamp())
+def list_locks(directory, username, state, archive, day, zone, now, *, period=None):
+    def midnight(local_date):
+        return datetime.combine(local_date, day_time(), zone).timestamp()
+
+    one_day = timedelta(days=1)
+    start, next_midnight = midnight(day), midnight(day + one_day)
+    end = min(now, next_midnight)
     if start > now:
         raise ValueError('Cannot list a future day')
-    rows, warnings = fetch_history(directory, username, start, end)
+    first, last = period or (day, day)
+    rows, warnings = fetch_history(directory, username, midnight(min(first, day)),
+                                   min(now, midnight(max(last, day) + one_day)))
     try:
         rows.extend(legacy_history(archive, username))
     except (OSError, ValueError, sqlite3.Error) as error:
@@ -276,7 +282,14 @@ def list_locks(directory, username, state, archive, day, zone, now):
     except (OSError, ValueError, KeyError, TypeError) as error:
         warnings.append(f'Current lock state unavailable: {error}')
     periods = lock_periods(rows, start, end)
-    return {
+    hourly = []
+    # Step through elapsed hours so repeated or skipped campus hours stay accurate.
+    for lo in range(int(start), int(next_midnight), 3600):
+        hi = min(lo + 3600, next_midnight)
+        seconds = sum(max(0, min(b, hi) - max(a, lo)) for a, b in periods)
+        hourly.append({'start': datetime.fromtimestamp(lo, zone).isoformat(),
+                       'locked_seconds': seconds if lo <= now else None})
+    data = {
         'date': day.isoformat(), 'timezone': str(zone), 'username': username,
         'periods': [{'start': datetime.fromtimestamp(a, zone).isoformat(),
                      'end': datetime.fromtimestamp(b, zone).isoformat(),
@@ -284,9 +297,21 @@ def list_locks(directory, username, state, archive, day, zone, now):
                      'ongoing': open_start is not None and a <= max(open_start, start) < b and b == now}
                     for a, b in periods],
         'locked_seconds': sum(b-a for a, b in periods),
+        'hourly_locks': hourly,
         'history_complete': False,
         'warnings': warnings + ['Only observed lock history is available; unobserved periods may be missing.'],
     }
+    if period:
+        # Use the same observations as the table, split at campus midnights.
+        merged = lock_periods(rows, midnight(first), min(now, midnight(last + one_day)))
+        daily = []
+        for offset in range((last - first).days + 1):
+            local_date = first + timedelta(days=offset)
+            lo, hi = midnight(local_date), midnight(local_date + one_day)
+            seconds = sum(max(0, min(b, hi) - max(a, lo)) for a, b in merged)
+            daily.append({'date': local_date.isoformat(), 'locked_seconds': seconds if lo <= now else None})
+        data['period_days'] = daily
+    return data
 
 
 def format_locks(data):
@@ -343,6 +368,8 @@ def main(argv=None):
     parser.add_argument('--state', type=Path, default=DEFAULT_STATE)
     parser.add_argument('--once', action='store_true')
     parser.add_argument('--date', type=date.fromisoformat, help='Day to list (default: today)')
+    parser.add_argument('--period', type=date.fromisoformat, nargs=2, metavar=('START', 'END'),
+                        help='Include daily observed lock totals for this inclusive period in JSON')
     parser.add_argument('--timezone', default='Africa/Casablanca')
     parser.add_argument('--archive', type=Path, default=DEFAULT_ARCHIVE)
     parser.add_argument('--delete-imported', action='store_true', help='After migration, remove verified JSON files. Stop old JSON-writing collectors first.')
@@ -361,7 +388,8 @@ def main(argv=None):
             zone = ZoneInfo(args.timezone)
             now = time.time()
             day = args.date or datetime.fromtimestamp(now, zone).date()
-            data = list_locks(args.history_dir, args.user, args.state, args.archive, day, zone, now)
+            data = list_locks(args.history_dir, args.user, args.state, args.archive, day, zone, now,
+                              period=args.period)
             print(json.dumps(data) if args.json else format_locks(data))
             return 0
         collector = HistoryCollector(args.history_dir, args.user, args.state)

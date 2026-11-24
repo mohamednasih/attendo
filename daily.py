@@ -60,6 +60,15 @@ def daily_total(profile, day, today):
     return None, 'daily.hours', None
 
 
+def period_log_totals(period, locations):
+    first, last = (date.fromisoformat(bound[:10]) for bound in (period.start, period.end))
+    totals = {}
+    for offset in range((last - first).days + 1):
+        day = first + timedelta(days=offset)
+        totals[day.isoformat()] = locations.get(day)
+    return totals
+
+
 def report(profile, day, zone, intervals, now, warnings, *, intra_estimate=None):
     today = datetime.fromtimestamp(now, zone).date()
     start, end = day_window(day, zone, now)
@@ -222,12 +231,13 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
             now = time.time()
             today = datetime.fromtimestamp(now, zone).date()
             intra_estimate = None
+            locations = {}
             day = args.date or today
             if args.intra and day in (today, today - timedelta(days=1)):
                 login = os.environ.get('INTRA_LOGIN') or profile.login
                 try:
-                    totals, fetched_at = intra_client.fetch_locations(login)
-                    total = totals.get(day)
+                    locations, fetched_at = intra_client.fetch_locations(login)
+                    total = locations.get(day)
                     if total is None:
                         warnings.append(f'42 Intra returned no location total for {day}.')
                     intra_estimate = total, fetched_at
@@ -261,6 +271,8 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
                 warnings.append(collector.error)
             data = report(profile, day, zone, intervals, now, warnings,
                           intra_estimate=intra_estimate)
+            if args.intra and profile.current:
+                data['period_log_seconds'] = period_log_totals(profile.current, locations)
             from dataclasses import asdict
             data['attendance_periods'] = [dict(asdict(period), label=label)
                                           for label, period in (('Current period', getattr(profile, 'current', None)),

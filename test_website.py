@@ -65,6 +65,18 @@ class WebsiteTests(unittest.TestCase):
         fetch.assert_any_call('daily.py', ['--intra', '--once', '--no-collect', '--date', '2026-11-15'])
         self.assertEqual(first, second)
 
+    def test_dashboard_uses_current_attendo_bounds_even_when_viewing_another_day(self):
+        report = {'attendance_periods': [
+            {'label': 'Previous period', 'start': '2026-11-03', 'end': '2026-11-11'},
+            {'label': 'Current period', 'start': '2026-11-12', 'end': '2026-11-21'},
+        ]}
+        locks = {'period_days': [{'date': '2026-11-12', 'locked_seconds': 42}]}
+        with patch.object(website, 'command_json', side_effect=[report, locks]) as fetch:
+            result = website.dashboard('2026-11-11')
+        fetch.assert_called_with('shared_history.py', ['list', '--json', '--date', '2026-11-11',
+                                                       '--period', '2026-11-12', '2026-11-21'])
+        self.assertEqual(result['locks'], locks)
+
     def test_manual_refresh_bypasses_cache(self):
         with patch.object(website, 'command_json', return_value={}) as fetch:
             website.dashboard('2026-11-15')

@@ -7,16 +7,21 @@
   } catch { /* Keep system mode when storage is unavailable. */ }
 
   function applyTheme() {
-    document.documentElement.dataset.theme = preference === 'system'
+    const theme = preference === 'system'
       ? (system.matches ? 'dark' : 'light') : preference;
+    document.documentElement.dataset.theme = theme;
+    const button = document.getElementById('theme');
+    if (button) {
+      button.title = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+      button.setAttribute('aria-label', button.title);
+    }
   }
   applyTheme();
   system.addEventListener('change', applyTheme);
   document.addEventListener('DOMContentLoaded', () => {
-    const selector = document.getElementById('theme');
-    selector.value = preference;
-    selector.addEventListener('change', () => {
-      preference = selector.value;
+    applyTheme();
+    document.getElementById('theme').addEventListener('click', () => {
+      preference = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
       try { localStorage.setItem('logged-theme', preference); } catch { /* Apply for this visit. */ }
       applyTheme();
     });
