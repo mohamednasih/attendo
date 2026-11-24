@@ -13,6 +13,21 @@ import website
 
 
 class WebsiteTests(unittest.TestCase):
+    def test_clusters_endpoint_handles_feed_and_session_failures(self):
+        handler = website.Handler.__new__(website.Handler)
+        handler.path = '/api/clusters'
+        handler.headers = {}
+        handler.send_json = Mock()
+        data = {'stations': [], 'fetched_at': '2026-11-24T09:00:00Z'}
+        with patch.object(website.intra_client, 'fetch_clusters', return_value=data):
+            handler.do_GET()
+            handler.send_json.assert_called_with(data)
+        for error, status in ((website.intra_client.IntraSessionError('Sign in'), 401),
+                              (ValueError('Unable to reach Intra'), 502)):
+            with self.subTest(status=status), patch.object(website.intra_client, 'fetch_clusters', side_effect=error):
+                handler.do_GET()
+                handler.send_json.assert_called_with({'error': str(error)}, status)
+
     def test_session_endpoint_requires_both_logins(self):
         handler = website.Handler.__new__(website.Handler)
         handler.path = '/api/session'
@@ -139,11 +154,31 @@ class WebsiteTests(unittest.TestCase):
         update.assert_not_called()
         self.assertEqual(handler.send_json.call_args.args[1], 403)
 
-    def test_responses_disable_browser_caching(self):
+    def test_responses_disable_browser_caching_by_default(self):
         with patch.object(website.Handler, 'send_header') as header, \
              patch.object(website.SimpleHTTPRequestHandler, 'end_headers'):
             website.Handler.end_headers(website.Handler.__new__(website.Handler))
         header.assert_any_call('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+
+    def test_only_successful_portraits_allow_browser_caching(self):
+        for portrait in (('image/png', b'photo'), None):
+            with self.subTest(available=bool(portrait)), \
+                 patch.object(website.intra_client, 'fetch_cluster_portrait', return_value=portrait), \
+                 patch.object(website.Handler, 'log_message'):
+                connection = Mock()
+                connection.makefile.return_value = BytesIO(b'GET /api/cluster-portraits/example HTTP/1.0\r\n\r\n')
+                response = BytesIO()
+                connection.sendall.side_effect = response.write
+                website.Handler(connection, ('127.0.0.1', 1234), None)
+                headers, body = response.getvalue().split(b'\r\n\r\n', 1)
+                self.assertEqual(headers.count(b'Cache-Control:'), 1)
+                if portrait:
+                    self.assertIn(b'Cache-Control: private, max-age=86400', headers)
+                    self.assertNotIn(b'no-cache', headers)
+                    self.assertEqual(body, b'photo')
+                else:
+                    self.assertIn(b'404', headers)
+                    self.assertIn(b'Cache-Control: no-store', headers)
 
 
 if __name__ == '__main__':

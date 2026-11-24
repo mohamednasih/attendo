@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Your local campus attendance and logged time dashboard."><title>Xattendo · Attendance</title><script src="/theme.js"></script><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Your local campus attendance and logged time dashboard."><title>Xattendo · Attendance</title><script src="/theme.js"></script><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
 <body>
 <section class="session-screen" id="session-screen" aria-labelledby="session-title">
   <div class="card session-card">
@@ -31,6 +31,7 @@
     <a href="#overview" aria-current="page">Overview</a>
     <a href="#details">Details</a>
     <a href="#week">Week</a>
+    <a href="#clusters">Clusters</a>
   </nav>
   <a class="repo-support" href="https://github.com/mohamednasih/attendo" target="_blank" rel="noopener noreferrer" aria-label="Star on GitHub (opens in a new tab)">
     <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="m12 3 2.78 5.63L21 9.54l-4.5 4.39 1.06 6.2L12 17.2l-5.56 2.93 1.06-6.2L3 9.54l6.22-.91Z"/></svg>
@@ -51,7 +52,7 @@
     <h2 id="settings-title">Settings</h2>
     <label class="settings-field" for="default-page">
       Page to show on startup
-      <select id="default-page"><option value="overview">Overview</option><option value="details">Details</option></select>
+      <select id="default-page"><option value="overview">Overview</option><option value="details">Details</option><option value="clusters">Clusters</option></select>
     </label>
     <label class="settings-field" for="default-day">
       Day to show on startup
@@ -66,7 +67,7 @@
     <div class="settings-actions"><button class="button">Done</button></div>
   </form>
 </dialog>
-<div class="toolbar">
+<div class="toolbar" id="attendance-toolbar">
   <h1 id="page-title">Overview</h1>
   <div id="daily-session" hidden>
     <dl class="card session-details" id="session-details" aria-label="Session details" hidden>
@@ -227,6 +228,31 @@
     <section class="card attendance" id="attendance"><div class="section-heading"><div><h2>Attendance</h2></div></div><div id="attendance-periods" class="attendance-periods">Connect to Attendo to see your recorded attendance.</div><p class="attendance-help">Expand a day to see its attendance and lock history. Recorded totals already exclude locks.</p></section>
   </section>
 </div>
+<section id="clusters-page" class="card clusters" aria-label="Campus workstations" hidden>
+  <div class="cluster-topbar">
+    <div id="cluster-switcher" role="group" aria-label="Choose a cluster"></div>
+    <label class="cluster-search" hidden>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6"/></svg>
+      <input id="cluster-search" type="search" aria-label="Find a login or workstation" placeholder="Find a login or workstation">
+    </label>
+  </div>
+  <div class="cluster-heading">
+    <h2 id="cluster-heading">Workstation map</h2>
+    <p id="cluster-summary" role="status"></p>
+  </div>
+  <div id="cluster-map" role="region" aria-label="Workstation map" hidden></div>
+  <ul id="cluster-results" aria-label="Matching workstations" hidden></ul>
+  <div id="cluster-inspector" role="status" hidden></div>
+  <a id="cluster-sign-in" class="session-link" href="https://meta.intra.42.fr/clusters" target="_blank" rel="noopener noreferrer" hidden>Open 42 Intra ↗</a>
+</section>
 <footer><div id="status" role="status" aria-live="polite">Loading your attendance…</div></footer>
 </main>
+<div id="cluster-profile" role="tooltip" hidden>
+  <div class="cluster-profile-avatar" aria-hidden="true"></div>
+  <div class="cluster-profile-info">
+    <strong id="cluster-profile-name"></strong>
+    <div id="cluster-profile-level" hidden></div>
+    <div id="cluster-profile-projects"></div>
+  </div>
+</div>
 </body></html>

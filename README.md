@@ -47,10 +47,11 @@ logged-time stats
 For a previous day, use `logged-time stats --date 2026-11-14`.
 
 - Click the sun or moon beside **Settings** to switch between light and dark. Your choice is saved for this browser.
-- **Settings** lets you choose the startup page (Overview or Details) and day (Today or Yesterday) for this browser, or toggle **Open browser at login** for this workstation. The server always starts in the background when you sign in.
+- **Settings** lets you choose the startup page (Overview, Details, or Clusters) and day (Today or Yesterday) for this browser, or toggle **Open browser at login** for this workstation. The server always starts in the background when you sign in.
 - **Overview** shows net attendance, current Attendo period progress, and total observed locked time for the selected day. Select an hour in the chart to see how many minutes the screen was locked. On **Today**, select **Edit** under **Net attendance** to set a personal goal in hours and minutes. The goal is saved for that date and account in this browser. To restore today’s recommendation, open **Edit** and select **Use recommended goal**.
 - **Details** shows total log time from 42 Intra, total observed locked time, net attendance, and Attendo’s recorded attendance for Today or Yesterday. The lock history graph shows minutes locked each hour. Expand **Lock and unlock times** for individual records.
 - **Week** charts each day’s total log time for the current Attendo period. Blue shows unlocked time and amber shows observed screen locks. Expand an attendance period and a day to inspect earlier records.
+- **Clusters** uses the floor plans published by 42 Intra. Hover over a portrait or focus it with the keyboard to see the student’s name, 42 cursus level, and current projects. Click the portrait or its fallback initials to open the student’s Intra profile in a new tab. Search by login or hostname to locate a workstation and see when its session started. Outlined seats have no reported session. The map updates when you open the tab.
 
 Refresh using **Refresh data**, your browser's reload button, or `logged-time`.
 The page does not refresh on a timer.

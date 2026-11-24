@@ -1,3 +1,5 @@
+import {loadClusters, clearClusters} from './clusters.js';
+
 const $ = id => document.getElementById(id);
 const pageLinks = [...document.querySelectorAll('.page-nav a')];
 function initStartupPreference(id) {
@@ -24,11 +26,14 @@ function showPage() {
   const pageHash = ({'#history': '#details', '#attendance': '#week'})[hash] ?? hash;
   const active = pageLinks.find(link => link.hash === pageHash) ?? pageLinks[0];
   const details = active.hash === '#details';
+  const clusters = active.hash === '#clusters';
   placeIn('goal-panel', details ? 'detail-net-summary' : 'logged-card');
   placeIn('current-period', details ? 'detail-period' : 'overview-period');
   placeIn('hourly-visual', details ? 'history-graph' : 'overview-hours');
   if (hash === '#history') $('lock-periods').open = true;
+  $('attendance-toolbar').hidden = clusters;
   $('daily-session').hidden = active.hash === '#week';
+  $('status').parentElement.hidden = clusters;
   $('day-tabs').hidden = active.hash === '#week';
   $('last-refresh').hidden = active.hash === '#week';
   $('page-title').textContent = active.textContent;
@@ -37,9 +42,12 @@ function showPage() {
     if (link === active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   }
+  if (!$('dashboard').hidden) {
+    if (clusters) loadClusters();
+    else if ($('day-report').hidden && !loading) load();
+  }
 }
 window.addEventListener('hashchange', showPage);
-showPage();
 
 const zone = 'Africa/Casablanca';
 const campusDateFormat = new Intl.DateTimeFormat('en-CA', {timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit'});
@@ -223,9 +231,11 @@ async function fetchDashboard(day, force = false) {
 }
 
 function showDashboard() {
+  const opening = $('dashboard').hidden;
   const returnFocus = $('session-screen').contains(document.activeElement);
   $('session-screen').hidden = true;
   $('dashboard').hidden = false;
+  if (opening && !$('clusters-page').hidden) loadClusters();
   if (returnFocus) document.querySelector('.page-nav [aria-current]').focus();
 }
 
@@ -240,6 +250,7 @@ async function fetchSessions() {
 }
 
 function showSessionScreen() {
+  clearClusters();
   dayReports.clear();
   updateGoal();
   showRefreshTime(null);
@@ -354,6 +365,7 @@ async function load(force = false, sessions = null) {
       showDashboard();
     }
 
+    if (!$('clusters-page').hidden) return;
     if (entry.data) renderDashboard(entry.data);
     $('status').className = '';
     $('status').textContent = day === today ? 'Loading today’s attendance…' : 'Loading yesterday’s attendance…';
@@ -708,4 +720,6 @@ window.addEventListener('focus', checkSession);
 window.addEventListener('pageshow', checkSession);
 document.addEventListener('visibilitychange', checkSession);
 setInterval(checkSession, 3000);
-updateGoal();load(true);
+showPage();
+updateGoal();
+load(true);
