@@ -88,10 +88,13 @@ def session_status():
 
 
 class Handler(SimpleHTTPRequestHandler):
-    def end_headers(self):
-        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-        self.send_header('Pragma', 'no-cache')
-        self.send_header('Expires', '0')
+    def end_headers(self, *, cache_portrait=False):
+        if cache_portrait:
+            self.send_header('Cache-Control', 'private, max-age=86400')
+        else:
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
         super().end_headers()
 
     def send_json(self, payload, status=200):
@@ -154,6 +157,44 @@ class Handler(SimpleHTTPRequestHandler):
         elif url.path == '/api/session':
             payload = session_status()
             self.send_json(payload, 503 if payload['active'] is None else 200)
+        elif url.path == '/api/clusters':
+            try:
+                self.send_json(intra_client.fetch_clusters())
+            except intra_client.IntraSessionError as error:
+                self.send_json({'error': str(error)}, 401)
+            except ValueError as error:
+                self.send_json({'error': str(error)}, 502)
+        elif url.path == '/api/cluster-profile':
+            login = parse_qs(url.query).get('login', [''])[0]
+            try:
+                profile = intra_client.fetch_cluster_profile(login)
+                if profile is None:
+                    self.send_json({'error': 'Student is no longer on the cluster map.'}, 404)
+                else:
+                    self.send_json(profile)
+            except intra_client.IntraSessionError as error:
+                self.send_json({'error': str(error)}, 401)
+            except (ValueError, OSError):
+                self.send_json({'error': 'Unable to load the student profile.'}, 502)
+        elif url.path.startswith('/api/cluster-portraits/'):
+            try:
+                portrait = intra_client.fetch_cluster_portrait(url.path.removeprefix('/api/cluster-portraits/'))
+            except (ValueError, OSError):
+                portrait = None
+            if portrait is None:
+                self.send_error(404)
+                return
+            mime, body = portrait
+            self.send_response(200)
+            self.send_header('Content-Type', mime)
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Length', str(len(body)))
+            try:
+                self.end_headers(cache_portrait=True)
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                # Switching floors can cancel an in-flight portrait.
+                pass
         elif url.path == '/api/dashboard':
             try:
                 today = datetime.now(ZoneInfo('Africa/Casablanca')).date()
@@ -169,7 +210,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-        elif url.path in ('/', '/index.html', '/style.css', '/app.js', '/theme.js'):
+        elif url.path in ('/', '/index.html', '/style.css', '/app.js', '/clusters.js', '/theme.js'):
             super().do_GET()
         else:
             self.send_error(404)

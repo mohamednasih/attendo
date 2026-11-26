@@ -1,5 +1,17 @@
+import {loadClusters, clearClusters} from './clusters.js';
+
 const $ = id => document.getElementById(id);
 const pageLinks = [...document.querySelectorAll('.page-nav a')];
+const clustersBadge = $('clusters-badge');
+const clustersBadgeKey = 'logged-clusters-badge-dismissed';
+try {
+  clustersBadge.hidden = localStorage.getItem(clustersBadgeKey) === '1';
+} catch { /* Keep the badge visible when storage is unavailable. */ }
+clustersBadge.closest('a').addEventListener('click', () => {
+  clustersBadge.hidden = true;
+  try { localStorage.setItem(clustersBadgeKey, '1'); } catch { /* Hide it for this visit. */ }
+}, {once: true});
+
 function initStartupPreference(id) {
   const select = $(id);
   const key = `logged-${id}`;
@@ -31,19 +43,26 @@ function showPage() {
   const pageHash = ({'#history': '#details', '#attendance': '#week'})[hash] ?? hash;
   const active = pageLinks.find(link => link.hash === pageHash) ?? pageLinks[0];
   const details = active.hash === '#details';
+  const clusters = active.hash === '#clusters';
   placeIn('goal-panel', details ? 'detail-net-summary' : 'logged-card');
   placeIn('hourly-visual', details ? 'history-graph' : 'overview-hours');
   if (hash === '#history') $('lock-periods').open = true;
+  $('attendance-toolbar').hidden = clusters;
   $('daily-session').hidden = active.hash === '#week';
+  $('status').parentElement.hidden = clusters;
   $('day-tabs').hidden = active.hash === '#week';
   $('last-refresh').hidden = active.hash === '#week';
-  $('page-title').textContent = active.textContent;
+  $('page-title').textContent = active.querySelector('.page-nav-label')?.textContent ?? active.textContent;
   for (const link of pageLinks) {
     $(link.hash.slice(1) + '-page').hidden = link !== active;
     if (link === active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   }
   placeAttendanceCards();
+  if (!$('dashboard').hidden) {
+    if (clusters) loadClusters();
+    else if ($('day-report').hidden && !loading) load();
+  }
 }
 window.addEventListener('hashchange', showPage);
 
@@ -231,9 +250,11 @@ async function fetchDashboard(day, force = false) {
 }
 
 function showDashboard() {
+  const opening = $('dashboard').hidden;
   const returnFocus = $('session-screen').contains(document.activeElement);
   $('session-screen').hidden = true;
   $('dashboard').hidden = false;
+  if (opening && !$('clusters-page').hidden) loadClusters();
   if (returnFocus) document.querySelector('.page-nav [aria-current]').focus();
 }
 
@@ -248,6 +269,7 @@ async function fetchSessions() {
 }
 
 function showSessionScreen() {
+  clearClusters();
   dayReports.clear();
   updateGoal();
   showRefreshTime(null);
@@ -362,6 +384,7 @@ async function load(force = false, sessions = null) {
       showDashboard();
     }
 
+    if (!$('clusters-page').hidden) return;
     if (entry.data) renderDashboard(entry.data);
     $('status').className = '';
     $('status').textContent = day === today ? 'Loading today’s attendance…' : 'Loading yesterday’s attendance…';
@@ -794,4 +817,6 @@ window.addEventListener('focus', checkSession);
 window.addEventListener('pageshow', checkSession);
 document.addEventListener('visibilitychange', checkSession);
 setInterval(checkSession, 3000);
-updateGoal();load(true);
+showPage();
+updateGoal();
+load(true);
