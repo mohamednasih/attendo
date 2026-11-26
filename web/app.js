@@ -19,13 +19,19 @@ function placeIn(id, containerId) {
   const element = $(id), container = $(containerId);
   if (element.parentElement !== container) container.append(element);
 }
+function placeAttendanceCards() {
+  const slot = $('details-page').hidden ? 'overview-period' : 'detail-period';
+  const yesterday = selectedDay === previousDay();
+  placeIn('current-period', slot);
+  $('current-period').hidden = yesterday;
+  placeIn('recorded-card', yesterday ? slot : 'detail-readings');
+}
 function showPage() {
   const hash = window.location.hash || `#${startupPage}`;
   const pageHash = ({'#history': '#details', '#attendance': '#week'})[hash] ?? hash;
   const active = pageLinks.find(link => link.hash === pageHash) ?? pageLinks[0];
   const details = active.hash === '#details';
   placeIn('goal-panel', details ? 'detail-net-summary' : 'logged-card');
-  placeIn('current-period', details ? 'detail-period' : 'overview-period');
   placeIn('hourly-visual', details ? 'history-graph' : 'overview-hours');
   if (hash === '#history') $('lock-periods').open = true;
   $('daily-session').hidden = active.hash === '#week';
@@ -37,9 +43,9 @@ function showPage() {
     if (link === active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   }
+  placeAttendanceCards();
 }
 window.addEventListener('hashchange', showPage);
-showPage();
 
 const zone = 'Africa/Casablanca';
 const campusDateFormat = new Intl.DateTimeFormat('en-CA', {timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit'});
@@ -88,6 +94,7 @@ startupSetting.addEventListener('change', () => syncStartupSetting(startupSettin
 
 let today = campusToday();
 let selectedDay = startupDay === 'yesterday' ? previousDay() : today;
+showPage();
 let loading = false;
 let dashboardRequest = 0;
 const dayReports = new Map();
@@ -206,6 +213,7 @@ function updateDayView() {
   $('yesterday').setAttribute('aria-pressed', String(selectedDay === previousDay()));
   const historical = selectedDay !== today && selectedDay !== previousDay();
   $('goal-panel').hidden = selectedDay !== today;
+  placeAttendanceCards();
   if (selectedDay !== today) {
     goalStorageKey = null;
     setGoalEditorOpen(false);
