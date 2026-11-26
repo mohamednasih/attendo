@@ -65,7 +65,7 @@ class WebsiteTests(unittest.TestCase):
         fetch.assert_any_call('daily.py', ['--intra', '--once', '--no-collect', '--date', '2026-11-15'])
         self.assertEqual(first, second)
 
-    def test_dashboard_uses_current_attendo_bounds_even_when_viewing_another_day(self):
+    def test_dashboard_uses_both_attendo_periods_even_when_viewing_another_day(self):
         report = {'attendance_periods': [
             {'label': 'Previous period', 'start': '2026-11-03', 'end': '2026-11-11'},
             {'label': 'Current period', 'start': '2026-11-12', 'end': '2026-11-21'},
@@ -74,6 +74,7 @@ class WebsiteTests(unittest.TestCase):
         with patch.object(website, 'command_json', side_effect=[report, locks]) as fetch:
             result = website.dashboard('2026-11-11')
         fetch.assert_called_with('shared_history.py', ['list', '--json', '--date', '2026-11-11',
+                                                       '--previous-period', '2026-11-03', '2026-11-11',
                                                        '--period', '2026-11-12', '2026-11-21'])
         self.assertEqual(result['locks'], locks)
 
@@ -82,6 +83,18 @@ class WebsiteTests(unittest.TestCase):
             website.dashboard('2026-11-15')
             website.dashboard('2026-11-15', refresh=True)
         self.assertEqual(fetch.call_count, 4)
+
+    def test_dashboard_reuses_previous_lock_totals_from_report(self):
+        previous_days = [{'date': '2026-11-11', 'locked_seconds': 120}]
+        report = {'previous_period_days': previous_days, 'attendance_periods': [
+            {'label': 'Previous period', 'start': '2026-11-03', 'end': '2026-11-11'},
+            {'label': 'Current period', 'start': '2026-11-12', 'end': '2026-11-21'},
+        ]}
+        with patch.object(website, 'command_json', side_effect=[report, {}]) as fetch:
+            result = website.dashboard('2026-11-15')
+        fetch.assert_called_with('shared_history.py', ['list', '--json', '--date', '2026-11-15',
+                                                       '--period', '2026-11-12', '2026-11-21'])
+        self.assertEqual(result['locks']['previous_period_days'], previous_days)
 
     def test_different_days_can_load_concurrently(self):
         reports_started = Barrier(2, timeout=5)

@@ -144,9 +144,9 @@
       </div>
       <div id="hourly-visual">
         <div id="hourly-chart" hidden>
-          <div class="hourly-plot">
-            <div class="hour-axis" aria-hidden="true"><span id="hour-max"></span><span id="hour-mid"></span><span>00h:00m</span></div>
-            <div class="hour-bars" id="hour-bars" role="radiogroup" aria-label="Locked minutes by hour"></div>
+          <div class="duration-plot">
+            <div class="duration-axis" aria-hidden="true"><span id="hour-max"></span><span id="hour-mid"></span><span>00h:00m</span></div>
+            <div class="duration-bars" id="hour-bars" role="radiogroup" aria-label="Locked minutes by hour"></div>
           </div>
           <div class="hourly-footer"><output id="hour-value"></output><span class="hour-upcoming" id="hour-upcoming" hidden>Upcoming hours</span></div>
         </div>
@@ -216,13 +216,39 @@
   </section>
   <section id="week-page" aria-label="Week" hidden>
     <section class="card time-chart" aria-labelledby="time-chart-title">
-      <h2 id="time-chart-title">Total log time by day</h2>
-      <p id="time-chart-period"></p>
-      <div id="time-chart-legend" hidden>
-        <span class="legend-unlocked">Unlocked</span>
-        <span class="legend-locked">Screen locked</span>
+      <div class="daily-chart-heading">
+        <div><h2 id="time-chart-title">Total log time by day</h2><p id="time-chart-period"></p></div>
+        <div class="tabs" id="chart-periods" role="group" aria-label="Chart attendance period">
+          <button type="button" value="Current period" aria-pressed="true" aria-controls="time-chart" disabled>Current period</button>
+          <button type="button" value="Previous period" aria-pressed="false" aria-controls="time-chart" disabled>Previous period</button>
+        </div>
       </div>
-      <ol id="time-chart-days"></ol>
+      <div id="time-chart" hidden>
+        <div id="time-chart-legend">
+          <dl class="chart-totals" aria-label="Period totals">
+            <div>
+              <dt class="legend-total">Logged this period</dt>
+              <dd><strong id="chart-logged-total"></strong><small id="chart-logged-total-coverage"></small></dd>
+            </div>
+            <div>
+              <dt class="legend-locked">Screen locked this period</dt>
+              <dd><strong id="chart-locked-total"></strong><small id="chart-locked-total-coverage"></small></dd>
+            </div>
+          </dl>
+          <span class="hour-upcoming" id="day-upcoming" hidden>Upcoming</span>
+        </div>
+        <div class="duration-plot daily-plot">
+          <div class="duration-axis" aria-hidden="true"><span id="day-max"></span><span id="day-mid"></span><span>0h</span></div>
+          <div class="daily-scroll">
+            <div class="duration-bars" id="time-chart-days" role="radiogroup" aria-labelledby="time-chart-title"></div>
+          </div>
+        </div>
+        <output class="daily-readout" id="day-readout">
+          <strong id="day-date"></strong>
+          <span class="legend-total">Total log time <b id="day-total"></b></span>
+          <span class="legend-locked">Screen locked <b id="day-locked"></b></span>
+        </output>
+      </div>
     </section>
     <section class="card attendance" id="attendance"><div class="section-heading"><div><h2>Attendance</h2></div></div><div id="attendance-periods" class="attendance-periods">Connect to Attendo to see your recorded attendance.</div><p class="attendance-help">Expand a day to see its attendance and lock history. Recorded totals already exclude locks.</p></section>
   </section>

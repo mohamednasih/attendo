@@ -41,13 +41,18 @@ def dashboard(day, refresh=False):
     ):
         try:
             if key == 'locks' and data['report']:
-                current = next((period for period in data['report'].get('attendance_periods', [])
-                                if period['label'] == 'Current period'), None)
-                if current:
-                    args.extend(['--period', current['start'][:10], current['end'][:10]])
+                flags = {'Current period': '--period'}
+                if 'previous_period_days' not in data['report']:
+                    flags['Previous period'] = '--previous-period'
+                for period in data['report'].get('attendance_periods', []):
+                    flag = flags.get(period['label'])
+                    if flag:
+                        args.extend([flag, period['start'][:10], period['end'][:10]])
             data[key] = command_json(script, args)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
             data['errors'].append(str(error))
+    if data['locks'] is not None and 'previous_period_days' in (data['report'] or {}):
+        data['locks']['previous_period_days'] = data['report'].pop('previous_period_days')
     return data
 
 

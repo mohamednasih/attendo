@@ -50,7 +50,7 @@ For a previous day, use `logged-time stats --date 2026-11-14`.
 - **Settings** lets you choose the startup page (Overview or Details) and day (Today or Yesterday) for this browser, or toggle **Open browser at login** for this workstation. The server always starts in the background when you sign in.
 - **Overview** shows net attendance and total observed locked time for the selected day. **Today** also shows progress for the current Attendo period. **Yesterday** shows the attendance Attendo recorded for that day. Select an hour in the chart to see how many minutes the screen was locked. On **Today**, select **Edit** under **Net attendance** to set a personal goal in hours and minutes. The goal is saved for that date and account in this browser. To restore today’s recommendation, open **Edit** and select **Use recommended goal**.
 - **Details** shows total log time from 42 Intra, total observed locked time, net attendance, and Attendo’s recorded attendance for Today or Yesterday. The lock history graph shows minutes locked each hour. Expand **Lock and unlock times** for individual records.
-- **Week** charts each day’s total log time for the current Attendo period. Blue shows unlocked time and amber shows observed screen locks. Expand an attendance period and a day to inspect earlier records.
+- **Week** shows total logged time and observed screen-lock time for the current or previous period. Each daily bar shows its duration. When some days are missing, the period total shows how many days contributed. Expand an attendance period and a day to inspect earlier records.
 
 Refresh using **Refresh data**, your browser's reload button, or `logged-time`.
 The page does not refresh on a timer.

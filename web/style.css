@@ -120,21 +120,24 @@ h1 { margin: 0; font-size: 27px; line-height: 1.3; font-weight: 650; letter-spac
 .detail-readings { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 #recorded.unposted { color: var(--secondary); font-family: inherit; font-size: 15px; font-weight: 500; letter-spacing: 0; }
 .time-chart { padding: var(--panel-padding); }
-.time-chart h2 { font-size: 18px; }
-#time-chart-period { margin: 4px 0 0; color: var(--secondary); font-size: 13px; }
-#time-chart-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; color: var(--secondary); font-size: 13px; }
-#time-chart-legend span::before { content: ''; display: inline-block; width: .75em; height: .75em; margin-right: 6px; border-radius: 2px; }
-.legend-unlocked::before { background: var(--logged); }
+.daily-chart-heading, #time-chart-legend, .daily-readout { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; }
+.daily-chart-heading { justify-content: space-between; }
+#time-chart-legend { margin-top: 16px; align-items: center; }
+.chart-totals { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+.chart-totals dd { display: grid; gap: 2px; margin: 2px 0 0; }
+.chart-totals strong { color: var(--ink); font: 600 clamp(17px, 2vw, 22px)/1.25 ui-monospace, monospace; }
+.chart-totals small { font-size: 11px; color: var(--muted); }
+.chart-totals small:empty { display: none; }
+#day-upcoming { margin-inline-start: auto; }
+.time-chart h2 { font-size: 17px; }
+#time-chart-period { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+#time-chart-legend, .daily-readout { color: var(--secondary); font-size: 12px; }
+.legend-total::before, .legend-locked::before { content: ''; display: inline-block; width: .72em; height: .72em; margin-right: 6px; border-radius: 2px; }
+.legend-total::before { background: var(--logged); }
 .legend-locked::before { background: var(--locked); }
-#time-chart-days { list-style: none; margin: 12px 0 0; padding: 0; }
-#time-chart-days:empty { display: none; }
-#time-chart-days li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 4px 10px; padding-block: 7px; font-size: 14px; }
-.time-values { font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
-.time-track { grid-column: 1 / -1; display: flex; background: var(--surface); height: 8px; border-radius: 2px; overflow: hidden; }
-.time-track > span { background: var(--muted); border-radius: inherit; }
-.time-track .split-time { background: linear-gradient(to right, var(--logged) var(--unlocked-share), var(--locked) var(--unlocked-share)); }
-.upcoming { color: var(--muted); }
-.upcoming .time-track { height: 0; border-top: 1px dashed var(--border); background: transparent; }
+.daily-readout { padding-top: 12px; border-top: 1px solid var(--border); }
+.daily-readout strong, .daily-readout b { color: var(--ink); font-weight: 600; }
+.daily-readout b { margin-left: 3px; font-variant-numeric: tabular-nums; }
 .metric-value {
   margin-top: 12px;
   overflow-wrap: anywhere;
@@ -182,17 +185,30 @@ tr:last-child td { border-bottom: 0; }
 .hourly-heading a { color: var(--secondary); font-size: 12px; text-decoration: none; }
 .hourly-heading a:hover { text-decoration: underline; }
 #hourly-empty { margin-top: 16px; }
-.hourly-plot { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px; margin: 22px 0 28px; height: clamp(88px, calc(13vh / var(--dashboard-scale, 1)), 136px); font: 11px/1 ui-monospace, monospace; color: var(--muted); }
-.hour-axis { display: flex; flex-direction: column; justify-content: space-between; text-align: right; margin-block: -.5em; }
-.hour-bars { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; border-block: 1px solid var(--border); }
-.hour-slot { position: relative; min-width: 0; }
+.duration-plot { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px; margin: 22px 0 28px; height: clamp(88px, calc(13vh / var(--dashboard-scale, 1)), 136px); font: 11px/1 ui-monospace, monospace; color: var(--muted); }
+.duration-axis { display: flex; flex-direction: column; justify-content: space-between; text-align: right; margin-block: -.5em; }
+.duration-bars { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; border-block: 1px solid var(--border); }
+.duration-slot { position: relative; min-width: 0; }
 .hour-slot[data-tick]::after { content: attr(data-tick); position: absolute; left: 0; top: calc(100% + 7px); }
-.hour-slot input { appearance: none; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; cursor: pointer; }
-.hour-slot input:enabled:hover, .hour-slot input:checked { background: color-mix(in srgb, var(--locked) 10%, transparent); }
-.hour-slot input:focus-visible { outline-offset: -2px; }
+.duration-slot input { appearance: none; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; cursor: pointer; }
+.duration-slot input:enabled:hover, .duration-slot input:checked { background: color-mix(in srgb, var(--slot-accent, var(--locked)) 10%, transparent); }
+.duration-slot input:focus-visible { outline-offset: -2px; }
 .hour-slot input:enabled::after { content: ''; position: absolute; inset-inline: 13%; bottom: 0; height: var(--bar-height, 0); border-radius: 2px 2px 0 0; background: var(--locked); }
-.hour-slot input:disabled, .hour-upcoming::before { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--border) 4px 5px); }
-.hour-slot input:disabled { opacity: .52; cursor: default; }
+.duration-slot input:disabled, .hour-upcoming::before { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--border) 4px 5px); }
+.duration-slot input:disabled { opacity: .52; cursor: default; }
+.daily-plot { --plot-height: clamp(132px, 19vh, 200px); --label-space: 1.7em; --slot-accent: var(--logged); height: auto; margin: 8px 0 12px; }
+.daily-plot .duration-axis { height: calc(var(--plot-height) + 1em); margin-top: calc(var(--label-space) - .5em); }
+.daily-scroll { overflow-x: auto; padding-block: var(--label-space) 35px; scrollbar-width: thin; }
+#time-chart-days { width: max-content; min-width: 100%; height: var(--plot-height); grid-auto-columns: minmax(16ch, 1fr); }
+.day-slot time { position: absolute; top: calc(100% + 6px); width: 100%; text-align: center; line-height: 1.2; cursor: pointer; }
+.day-slot time::before { content: attr(data-weekday); display: block; }
+.day-slot input:checked + time { color: var(--ink); font-weight: 700; }
+.day-slot input:disabled + time { cursor: default; }
+.day-bar { --offset: clamp(3.6ch, 21%, 4.5ch); position: absolute; bottom: 0; width: min(28%, 30px); height: 0; transform: translateX(-50%); border-radius: 3px 3px 0 0; background: var(--bar-color); pointer-events: none; }
+.bar-total { --bar-color: var(--logged); left: calc(50% - var(--offset)); }
+.bar-locked { --bar-color: var(--locked); left: calc(50% + var(--offset)); }
+.day-bar > span { position: absolute; bottom: calc(100% + 3px); left: 50%; transform: translateX(-50%); color: color-mix(in srgb, var(--bar-color) 75%, var(--ink)); font-weight: 600; white-space: nowrap; }
+.day-bar.missing { --bar-color: var(--muted); border-top: 2px dotted var(--muted); }
 .hourly-footer { padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--secondary); }
 #hour-value { font-variant-numeric: tabular-nums; }
 #hour-value::before, .hour-upcoming::before { content: ''; display: inline-block; width: .72em; height: .72em; border-radius: 2px; margin-right: 6px; }
@@ -207,7 +223,7 @@ tr:last-child td { border-bottom: 0; }
   isolation: isolate;
   display: grid;
   place-content: center;
-  width: 136px;
+  width: 160px;
   max-width: 100%;
   align-self: center;
   margin-block: 8px;
@@ -321,7 +337,7 @@ footer { margin-top: 12px; color: var(--muted); font-size: 13px; }
 .history .section-heading { align-items: baseline; padding: var(--panel-padding) var(--panel-padding) 0; }
 .history .section-heading p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
 #history-graph { padding: 0 var(--panel-padding) 16px; }
-#history-graph .hourly-plot { height: clamp(110px, calc(16vh / var(--dashboard-scale, 1)), 180px); }
+#history-graph .duration-plot { height: clamp(110px, calc(16vh / var(--dashboard-scale, 1)), 180px); }
 #history-graph .hour-slot input:disabled { opacity: .34; }
 #lock-periods { border-top: 1px solid var(--border); }
 #lock-periods > summary { padding: 12px var(--panel-padding); cursor: pointer; font-weight: 600; }

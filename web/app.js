@@ -439,12 +439,17 @@ function renderLockRows(body, locks) {
 
 const periodDateFormat = new Intl.DateTimeFormat('en-US', {month:'short', day:'numeric', timeZone:'UTC'});
 const chartDayFormat = new Intl.DateTimeFormat('en-GB', {weekday:'short', month:'short', day:'numeric', timeZone:'UTC'});
+const weekdayFormat = new Intl.DateTimeFormat('en-GB', {weekday:'short', timeZone:'UTC'});
 
-function renderCurrentPeriod(period, target, dateRange) {
+function formatPeriodRange(period) {
+  return periodDateFormat.formatRange(new Date(period.start.slice(0, 10)), new Date(period.end.slice(0, 10)));
+}
+
+function renderCurrentPeriod(period, target) {
   $('period-gauge').hidden = !period;
   $('period-progress-status').hidden = !period;
   $('period-progress-count').hidden = !period;
-  $('period-progress-dates').textContent = dateRange || 'Current period unavailable.';
+  $('period-progress-dates').textContent = period ? formatPeriodRange(period) : 'Current period unavailable.';
   if (!period) return;
 
   const seconds = period.total * 3600;
@@ -453,7 +458,8 @@ function renderCurrentPeriod(period, target, dateRange) {
   const progress = hasTarget ? Math.min(1, Math.max(0, seconds / target)) : 0;
   $('period-gauge').style.setProperty('--period-sweep', `${progress * 270}deg`);
   $('period-progress-total').textContent = duration(seconds);
-  $('period-progress-target').textContent = hasTarget ? `of ${duration(target)}` : 'Time recorded';
+  const targetLabel = target % 3600 === 0 ? `${target / 3600}h` : duration(target);
+  $('period-progress-target').textContent = hasTarget ? `of ${targetLabel}` : 'Time recorded';
   $('period-progress-count').textContent = `${period.days.filter(day => day.counted).length} / 7 days counted`;
   $('period-progress-status').textContent = reached ? 'Target reached' : hasTarget ? 'In progress' : 'Target unavailable';
   $('period-progress-status').classList.toggle('target-reached', reached);
@@ -488,7 +494,7 @@ function renderHourlyLocks(hours) {
     const hourLabel = hours.length === 24 ? `${time}–${clock(Date.parse(start) + 3600000)}`
       : `Hour starting ${time} UTC${start.slice(-6)}`;
     const description = seconds == null ? `${hourLabel} · Upcoming` : `${hourLabel} · ${chartDuration(seconds)} locked`;
-    slot.className = 'hour-slot';
+    slot.className = 'duration-slot hour-slot';
     slot.title = description;
     if (Number(time.slice(0, 2)) % 4 === 0) slot.dataset.tick = time;
     input.type = 'radio';
@@ -505,51 +511,124 @@ function renderHourlyLocks(hours) {
   }
 }
 
-function renderPeriodChart(logTotals, lockDays, dateRange) {
-  const list = $('time-chart-days');
-  list.replaceChildren();
+const chartPeriodButtons = [...$('chart-periods').querySelectorAll('button')];
+let preferredChartPeriod = 'Current period';
+
+function selectChartPeriod(label) {
+  preferredChartPeriod = label;
+  const data = dayReports.get(selectedDay)?.data;
+  if (data) renderWeekChart(data);
+}
+for (const button of chartPeriodButtons) {
+  button.addEventListener('click', () => selectChartPeriod(button.value));
+}
+$('period-progress-title').querySelector('a').addEventListener('click', () => selectChartPeriod('Current period'));
+
+function renderWeekChart({report, locks}) {
+  const periods = report?.attendance_periods || [];
+  const period = periods.find(item => item.label === preferredChartPeriod) ?? periods[0];
+  for (const button of chartPeriodButtons) {
+    button.disabled = !periods.some(item => item.label === button.value);
+    button.setAttribute('aria-pressed', String(button.value === period?.label));
+  }
+  const previous = period?.label === 'Previous period';
+  renderPeriodChart(previous ? report.previous_period_log_seconds : report?.period_log_seconds,
+                    previous ? (report.previous_period_days ?? locks?.previous_period_days) : locks?.period_days, period);
+}
+
+function compactDuration(seconds) {
+  if (seconds == null) return '—';
+  if (seconds > 0 && seconds < 60) return '<1m';
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  if (!hours) return `${minutes}m`;
+  return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
+}
+
+function showPeriodTotal(id, values) {
+  const known = values.filter(value => value != null);
+  $(id).textContent = known.length ? compactDuration(known.reduce((sum, seconds) => sum + seconds, 0)) : '—';
+  $(id + '-coverage').textContent = known.length < values.length ? `${known.length} of ${values.length} days available` : '';
+}
+
+function dayBar(series, seconds, scaleSeconds) {
+  const bar = document.createElement('span');
+  bar.className = `day-bar bar-${series}`;
+  bar.setAttribute('aria-hidden', 'true');
+  if (seconds == null) bar.classList.add('missing');
+  if (seconds > 0) bar.style.height = `max(2px, ${100 * seconds / scaleSeconds}%)`;
+  const value = document.createElement('span');
+  value.textContent = compactDuration(seconds);
+  bar.append(value);
+  return bar;
+}
+
+function renderPeriodChart(logTotals, lockDays, period) {
+  const bars = $('time-chart-days');
+  const previous = bars.querySelector('input:checked')?.value;
+  bars.replaceChildren();
   const locks = new Map((lockDays || []).map(day => [day.date, day.locked_seconds]));
-  const dates = logTotals ? Object.keys(logTotals).sort() : [...locks.keys()].sort();
-  $('time-chart-legend').hidden = !dateRange || !dates.length;
-  if (!dateRange || !dates.length) {
-    $('time-chart-period').textContent = dateRange ? 'Daily totals unavailable for this period.' : 'Current period unavailable.';
+  const hasData = Object.keys(logTotals || {}).length > 0 || locks.size > 0;
+  $('time-chart').hidden = !period || !hasData;
+  if (!period) {
+    $('time-chart-period').textContent = 'Attendance period unavailable.';
     return;
   }
-  $('time-chart-period').textContent = `Current Attendo period · ${dateRange}`;
-  const maximum = Math.max(1, ...dates.filter(date => date <= today).map(date => logTotals?.[date] ?? 0));
+  const range = formatPeriodRange(period);
+  $('time-chart-period').textContent = hasData ? range : `${range} · Daily totals unavailable.`;
+  if (!hasData) return;
+  const dates = [];
+  const last = Date.parse(period.end.slice(0, 10));
+  for (let stamp = Date.parse(period.start.slice(0, 10)); stamp <= last; stamp += 86400000) {
+    dates.push(new Date(stamp).toISOString().slice(0, 10));
+  }
+  const elapsed = dates.filter(date => date <= today);
+  showPeriodTotal('chart-logged-total', elapsed.map(date => logTotals?.[date]));
+  showPeriodTotal('chart-locked-total', elapsed.map(date => locks.get(date)));
+  const peakHours = Math.max(0, ...elapsed.map(date => Math.max(logTotals?.[date] ?? 0, locks.get(date) ?? 0))) / 3600;
+  const scaleHours = [1, 2, 4, 6, 8, 12, 16, 20, 24].find(hours => hours >= peakHours) ?? Math.ceil(peakHours / 2) * 2;
+  $('day-max').textContent = `${scaleHours}h`;
+  $('day-mid').textContent = scaleHours === 1 ? '30m' : `${scaleHours / 2}h`;
+  $('day-upcoming').hidden = elapsed.length === dates.length;
+  $('day-readout').hidden = !elapsed.length;
+  const selected = elapsed.includes(previous) ? previous
+    : elapsed.filter(date => logTotals?.[date] != null || locks.get(date) != null).at(-1) ?? elapsed.at(-1);
+
   for (const date of dates) {
-    const row = document.createElement('li');
-    const label = document.createElement('time');
-    label.dateTime = date;
-    label.textContent = chartDayFormat.format(new Date(date));
-    const track = document.createElement('span');
-    track.className = 'time-track';
-    track.setAttribute('aria-hidden', 'true');
-    const value = document.createElement('span');
-    value.className = 'time-values';
-    if (date > today) {
-      row.className = 'upcoming';
-      value.textContent = 'Upcoming';
-    } else {
-      const total = logTotals?.[date];
-      const locked = locks.get(date);
-      const totalLabel = total == null ? 'Total unavailable' : `${chartDuration(total)} total`;
-      const lockLabel = locked == null ? 'Locks unavailable' : `${chartDuration(locked)} locked`;
-      value.textContent = `${totalLabel} · ${lockLabel}`;
-      if (total != null) {
-        const bar = document.createElement('span');
-        bar.style.width = `${100 * total / maximum}%`;
-        if (locked != null && locked <= total) {
-          bar.className = 'split-time';
-          bar.style.setProperty('--unlocked-share', `${total > 0 ? 100 * (total - locked) / total : 0}%`);
-        } else if (locked > total) {
-          value.textContent += ' (exceeds total)';
-        }
-        track.append(bar);
-      }
-    }
-    row.append(label, value, track);
-    list.append(row);
+    const slot = document.createElement('label');
+    slot.className = 'duration-slot day-slot';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'period-day';
+    input.value = date;
+    input.disabled = date > today;
+    input.checked = date === selected;
+
+    const day = new Date(date);
+    const dayLabel = chartDayFormat.format(day);
+    const tick = document.createElement('time');
+    tick.dateTime = date;
+    tick.dataset.weekday = weekdayFormat.format(day);
+    tick.textContent = String(day.getUTCDate());
+    tick.setAttribute('aria-hidden', 'true');
+    const total = logTotals?.[date];
+    const locked = locks.get(date);
+    const totalValue = total == null ? 'Unavailable' : chartDuration(total);
+    let lockedValue = locked == null ? 'Unavailable' : chartDuration(locked);
+    if (total != null && locked > total) lockedValue += ' (exceeds total)';
+    slot.title = input.disabled ? `${dayLabel} · Upcoming`
+      : `${dayLabel} · Total log time ${totalValue} · Screen locked ${lockedValue}`;
+    input.setAttribute('aria-label', slot.title);
+    const showDay = () => {
+      $('day-date').textContent = dayLabel;
+      $('day-total').textContent = totalValue;
+      $('day-locked').textContent = lockedValue;
+    };
+    if (input.checked) showDay();
+    input.addEventListener('change', showDay);
+    slot.append(input, tick);
+    if (!input.disabled) slot.append(dayBar('total', total, scaleHours * 3600), dayBar('locked', locked, scaleHours * 3600));
+    bars.append(slot);
   }
 }
 
@@ -557,9 +636,8 @@ function renderAttendance(data) {
   const periods = data.report?.attendance_periods || [];
   const target = data.report?.attendance_goal?.target_seconds;
   const current = periods.find(period => period.label === 'Current period');
-  const dateRange = current ? periodDateFormat.formatRange(new Date(current.start), new Date(current.end)) : '';
-  renderCurrentPeriod(current, target, dateRange);
-  renderPeriodChart(data.report?.period_log_seconds, data.locks?.period_days, dateRange);
+  renderCurrentPeriod(current, target);
+  renderWeekChart(data);
   const list = $('attendance-periods');
   const expanded = new Set([...list.querySelectorAll('.attendance-period[open]')].map(item => item.dataset.period));
   const expandedDays = new Set([...list.querySelectorAll('.attendance-day[open]')].map(item => item.dataset.day));

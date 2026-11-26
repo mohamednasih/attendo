@@ -18,7 +18,7 @@ import attendo_client as client
 import intra_client
 
 from logged_time import DEFAULT_ARCHIVE, DEFAULT_STATE, duration, locked_seconds, read_state
-from shared_history import DEFAULT_HISTORY, HistoryCollector, fetch_history, legacy_history
+from shared_history import DEFAULT_HISTORY, HistoryCollector, fetch_history, legacy_history, period_lock_days
 
 
 def day_window(day, zone, now):
@@ -60,8 +60,12 @@ def daily_total(profile, day, today):
     return None, 'daily.hours', None
 
 
+def period_bounds(period):
+    return date.fromisoformat(period.start[:10]), date.fromisoformat(period.end[:10])
+
+
 def period_log_totals(period, locations):
-    first, last = (date.fromisoformat(bound[:10]) for bound in (period.start, period.end))
+    first, last = period_bounds(period)
     totals = {}
     for offset in range((last - first).days + 1):
         day = first + timedelta(days=offset)
@@ -253,6 +257,13 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
             if fetch_day != today and (args.date is None or args.date == today):
                 raise ValueError('No fresh Attendo data for the new day; retry after the connection recovers')
             start, end = day_window(day, zone, now)
+            # Also serve Week from this report when a running server only requests current-period locks.
+            previous_bounds = period_bounds(profile.previous) if args.intra and profile.previous else None
+            if previous_bounds:
+                first, last = previous_bounds
+                start = min(start, datetime.combine(first, day_time(), zone).timestamp())
+                after_period = datetime.combine(last + timedelta(days=1), day_time(), zone).timestamp()
+                end = max(end, min(after_period, now))
             shared, file_warnings = fetch_history(args.history_dir, profile.login, start, end)
             intervals.extend(shared)
             warnings.extend(file_warnings)
@@ -264,8 +275,12 @@ Attendo reports require a Firefox, Chrome, or Brave login or ATTENDO_TOKEN; lock
                 warnings.append(collector.error)
             data = report(profile, day, zone, intervals, now, warnings,
                           intra_estimate=intra_estimate)
-            if args.intra and profile.current:
-                data['period_log_seconds'] = period_log_totals(profile.current, locations)
+            if args.intra:
+                if profile.current:
+                    data['period_log_seconds'] = period_log_totals(profile.current, locations)
+                if previous_bounds:
+                    data['previous_period_log_seconds'] = period_log_totals(profile.previous, locations)
+                    data['previous_period_days'] = period_lock_days(intervals, *previous_bounds, zone, now)
             from dataclasses import asdict
             data['attendance_periods'] = [dict(asdict(period), label=label)
                                           for label, period in (('Current period', getattr(profile, 'current', None)),

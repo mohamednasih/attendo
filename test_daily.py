@@ -3,14 +3,42 @@ from types import SimpleNamespace
 from contextlib import redirect_stdout
 from io import StringIO
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
+from attendo_client import Period, Snapshot
 from daily import daily_total, day_window, period_log_totals, report, main
 from intra_client import parse_locations
+from shared_history import HistoryWriter
 
 
 class DailyTests(unittest.TestCase):
+    def test_dashboard_report_includes_previous_locks_without_period_arguments(self):
+        zone = ZoneInfo('Africa/Casablanca')
+        now = datetime(2026, 11, 15, 12, tzinfo=zone)
+        midnight = datetime(2026, 11, 12, tzinfo=zone).timestamp()
+        profile = Snapshot('student', Period('2026-11-13', '2026-11-15', 0, ()),
+                           Period('2026-11-10', '2026-11-12', 0, ()), None, now)
+        output = StringIO()
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            HistoryWriter(root, 'student').observe([(midnight - 300, midnight + 120)], now.timestamp())
+            args = ['daily.py', '--once', '--intra', '--no-collect', '--date', '2026-11-15',
+                    '--history-dir', directory, '--archive', str(root / 'legacy'), '--state', str(root / 'state')]
+            with patch('sys.argv', args), patch('daily.time.time', return_value=now.timestamp()), \
+                 patch('daily.client.ensure_browser_session'), patch('daily.client.fetch_profile', return_value=profile), \
+                 patch('daily.intra_client.fetch_locations', return_value=({}, now)), redirect_stdout(output):
+                main()
+        result = json.loads(output.getvalue())
+        self.assertEqual(result['previous_period_days'], [
+            {'date': '2026-11-10', 'locked_seconds': 0},
+            {'date': '2026-11-11', 'locked_seconds': 300},
+            {'date': '2026-11-12', 'locked_seconds': 120},
+        ])
+        self.assertEqual(result['locked_seconds'], 0)
+
     def test_period_log_totals_keep_intra_zero_and_missing_dates_distinct(self):
         period = SimpleNamespace(start='2026-10-30', end='2026-11-02')
         locations = parse_locations({'2026-10-29': '02:00:00', '2026-10-30': '01:25:10.5',

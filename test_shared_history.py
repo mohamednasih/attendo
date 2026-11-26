@@ -228,15 +228,20 @@ class SharedTests(unittest.TestCase):
         midnight = datetime(2026, 11, 15, tzinfo=zone).timestamp()
         now = midnight + 1800
         writer = HistoryWriter(self.directory, 'student')
-        writer.observe([(midnight - 900, midnight + 600)], now)
+        prior_lock = datetime(2026, 11, 12, 9, tzinfo=zone).timestamp()
+        writer.observe([(prior_lock, prior_lock + 90), (midnight - 900, midnight + 600)], now)
         with patch('shared_history.legacy_history', return_value=[(midnight - 300, midnight + 900)]), \
              patch('shared_history.read_state', return_value=[(midnight + 1200, None)]):
             data = list_locks(self.directory, 'student', None, None, date(2026, 11, 14), zone, now,
-                              period=(date(2026, 11, 13), date(2026, 11, 16)))
+                              period=(date(2026, 11, 15), date(2026, 11, 16)),
+                              previous_period=(date(2026, 11, 12), date(2026, 11, 14)))
         self.assertEqual(data['locked_seconds'], 900)
-        self.assertEqual(data['period_days'], [
+        self.assertEqual(data['previous_period_days'], [
+            {'date': '2026-11-12', 'locked_seconds': 90},
             {'date': '2026-11-13', 'locked_seconds': 0},
             {'date': '2026-11-14', 'locked_seconds': 900},
+        ])
+        self.assertEqual(data['period_days'], [
             {'date': '2026-11-15', 'locked_seconds': 1500},
             {'date': '2026-11-16', 'locked_seconds': None},
         ])
