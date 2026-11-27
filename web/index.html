@@ -1,26 +1,48 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Your local campus attendance and logged time dashboard."><title>Xattendo · Attendance</title><script src="/theme.js"></script><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Your local campus attendance and logged time dashboard."><title>Xattendo · Attendance</title><script src="./theme.js"></script><link rel="stylesheet" href="./style.css"><script type="module" src="./app.js"></script></head>
 <body>
 <section class="session-screen" id="session-screen" aria-labelledby="session-title">
   <div class="card session-card">
     <div class="brand">Xattendo</div>
-    <h1 id="session-title" tabindex="-1">Account sign-in</h1>
-    <p id="session-guidance">Sign in to both services in Firefox, Chrome, or Brave, then return here.</p>
-    <p class="browser-note"><strong>We recommend Firefox.</strong> If you use Chrome, it may take about 30 seconds for your sign-in to appear here.</p>
-    <ul class="session-services" aria-label="Accounts">
-      <li>
-        <div><strong id="intra-name">42 Intra</strong><span class="session-state" id="intra-state" role="status" aria-labelledby="intra-name">Checking…</span></div>
-        <a class="session-link" id="intra-login" href="https://profile.intra.42.fr/" target="_blank" rel="noopener noreferrer" aria-label="Open 42 Intra in a new tab"><span>Open site</span> <span aria-hidden="true">↗</span></a>
-      </li>
-      <li>
-        <div><strong id="attendo-name">1337 Attendo</strong><span class="session-state" id="attendo-state" role="status" aria-labelledby="attendo-name">Checking…</span></div>
-        <a class="session-link" id="attendo-login" href="https://attendo.1337.ma/students/login" target="_blank" rel="noopener noreferrer" aria-label="Open 1337 Attendo in a new tab"><span>Open site</span> <span aria-hidden="true">↗</span></a>
-      </li>
-    </ul>
-    <p id="session-status" role="status"></p>
-    <div class="session-actions">
-      <button class="button" id="retry-session" type="button" disabled>Checking…</button>
+    <h1 id="session-title" tabindex="-1">Finding Xattendo…</h1>
+    <div id="server-install" hidden>
+      <div class="cluster-warning" role="note">
+        <strong>For 1337 Rabat cluster workstations</strong>
+      </div>
+      <p>On a 1337 Rabat cluster workstation, open Terminal and run:</p>
+      <pre class="install-command"><code id="install-command">git clone https://github.com/mohamednasih/attendo.git
+cd attendo
+make install</code></pre>
+      <div class="session-actions">
+        <button class="button primary-button" id="copy-install" type="button">Copy command</button>
+        <button class="button" id="retry-server" type="button">Check again</button>
+      </div>
+      <p id="copy-status" class="sr-only" role="status"></p>
+      <details class="install-help">
+        <summary>Already installed?</summary>
+        <p>Open its folder and run <code>make install</code>. If prompted, allow browser access to your local device.</p>
+        <a href="https://github.com/mohamednasih/attendo#readme" target="_blank" rel="noopener noreferrer">More help</a>
+      </details>
+      <p id="server-status" class="server-status" role="status"></p>
+    </div>
+    <div id="account-panel" hidden>
+      <p id="session-guidance">Sign in to continue.</p>
+      <p class="browser-note"><strong>Firefox recommended.</strong> Chrome can take 30 seconds.</p>
+      <ul class="session-services" aria-label="Accounts">
+        <li>
+          <div><strong id="intra-name">42 Intra</strong><span class="session-state" id="intra-state" role="status" aria-labelledby="intra-name">Checking…</span></div>
+          <a class="session-link" id="intra-login" href="https://profile.intra.42.fr/" target="_blank" rel="noopener noreferrer" aria-label="Open 42 Intra in a new tab"><span>Open site</span> <span aria-hidden="true">↗</span></a>
+        </li>
+        <li>
+          <div><strong id="attendo-name">1337 Attendo</strong><span class="session-state" id="attendo-state" role="status" aria-labelledby="attendo-name">Checking…</span></div>
+          <a class="session-link" id="attendo-login" href="https://attendo.1337.ma/students/login" target="_blank" rel="noopener noreferrer" aria-label="Open 1337 Attendo in a new tab"><span>Open site</span> <span aria-hidden="true">↗</span></a>
+        </li>
+      </ul>
+      <p id="session-status" role="status"></p>
+      <div class="session-actions">
+        <button class="button" id="retry-session" type="button" disabled>Checking…</button>
+      </div>
     </div>
   </div>
 </section>

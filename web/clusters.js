@@ -1,3 +1,5 @@
+import {apiFetch, apiUrl} from './api.js';
+
 const byId = id => document.getElementById(id);
 const switcher = byId('cluster-switcher');
 const search = byId('cluster-search');
@@ -162,7 +164,7 @@ function showProfile(seat, station) {
     positionProfile();
     let pending = profiles.get(station);
     if (!pending) {
-      pending = fetch(`/api/cluster-profile?login=${encodeURIComponent(station.login)}`).then(response => {
+      pending = apiFetch(`/api/cluster-profile?login=${encodeURIComponent(station.login)}`).then(response => {
         if (!response.ok) throw new Error('Profile unavailable');
         return response.json();
       });
@@ -215,7 +217,7 @@ function occupiedSeat(station) {
     photo.decoding = 'async';
     photo.draggable = false;
     photo.addEventListener('error', () => photo.remove(), {once: true});
-    photo.src = station.portrait;
+    photo.src = apiUrl(station.portrait);
     seat.append(photo);
   }
   seat.dataset.host = station.host;
@@ -349,7 +351,7 @@ export async function loadClusters() {
   if (!groups.length) byId('cluster-summary').textContent = 'Loading workstations…';
   let needsSignIn = false;
   try {
-    const response = await fetch('/api/clusters', {cache: 'no-store', signal: controller.signal});
+    const response = await apiFetch('/api/clusters', {cache: 'no-store', signal: controller.signal});
     if (response.status === 404) throw new Error('Restart the local server to load the cluster map.');
     const data = await response.json();
     if (controller.signal.aborted) return;

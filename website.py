@@ -22,6 +22,7 @@ from desktop_startup import autostart_path, launch_at_login, set_launch_at_login
 
 ROOT = Path(__file__).resolve().parent
 SETTINGS_LOCK = threading.Lock()
+PAGES_ORIGIN = 'https://mohamednasih.github.io'
 
 
 def command_json(script, args):
@@ -88,6 +89,15 @@ def session_status():
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def allowed_origin(self):
+        origin = getattr(self, 'headers', {}).get('Origin')
+        if not origin:
+            return None
+        port = self.server.server_port
+        suffix = f':{port}' if port != 80 else ''
+        local_origins = {f'http://localhost{suffix}', f'http://127.0.0.1{suffix}'}
+        return origin if origin == PAGES_ORIGIN or origin in local_origins else None
+
     def end_headers(self, *, cache_portrait=False):
         if cache_portrait:
             self.send_header('Cache-Control', 'private, max-age=86400')
@@ -95,6 +105,12 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             self.send_header('Pragma', 'no-cache')
             self.send_header('Expires', '0')
+        if urlsplit(getattr(self, 'path', '')).path.startswith('/api/'):
+            origin = self.allowed_origin()
+            if origin:
+                self.send_header('Access-Control-Allow-Origin', origin)
+                self.send_header('Access-Control-Allow-Private-Network', 'true')
+                self.send_header('Vary', 'Origin')
         super().end_headers()
 
     def send_json(self, payload, status=200):
@@ -110,8 +126,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return
         port = self.server.server_port
-        suffix = f':{port}' if port != 80 else ''
-        if self.headers.get('Origin') not in (f'http://localhost{suffix}', f'http://127.0.0.1{suffix}'):
+        if not self.allowed_origin():
             self.send_json({'error': 'Open xattendo on localhost to change desktop settings.'}, 403)
             return
         if self.headers.get_content_type() != 'application/json':
@@ -135,6 +150,16 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({'error': 'Unable to save the desktop startup setting.'}, 500)
             return
         self.send_json({'launch_at_login': enabled})
+
+    def do_OPTIONS(self):
+        if not urlsplit(self.path).path.startswith('/api/') or not self.allowed_origin():
+            self.send_error(403)
+            return
+        self.send_response(204)
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Content-Length', '0')
+        self.end_headers()
 
     def do_GET(self):
         # Always send current assets even if a browser has an older cached copy.
@@ -210,7 +235,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-        elif url.path in ('/', '/index.html', '/style.css', '/app.js', '/clusters.js', '/theme.js'):
+        elif url.path in ('/', '/index.html', '/style.css', '/api.js', '/app.js', '/clusters.js', '/theme.js'):
             super().do_GET()
         else:
             self.send_error(404)

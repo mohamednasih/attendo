@@ -315,6 +315,17 @@ footer { margin-top: 12px; color: var(--muted); font-size: 13px; }
 .session-actions .button { min-height: 44px; font-size: 13px; }
 #retry-session { min-width: clamp(108px, 15vw, 152px); background: var(--active); color: var(--active-text); border-color: var(--active); }
 #retry-session:hover:enabled { opacity: .85; }
+.cluster-warning { display: grid; gap: 3px; width: fit-content; margin: 18px 0; padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--warning-text) 28%, transparent); border-radius: 999px; background: var(--warning-bg); color: var(--warning-text); }
+.cluster-warning strong { font-size: 15px; }
+.install-command { margin: 16px 0; padding: 14px; overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); font: 13px/1.65 ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.install-help { margin-top: 18px; color: var(--secondary); font-size: 13px; }
+.install-help summary { width: fit-content; cursor: pointer; }
+.install-help p { margin-top: 8px; }
+.install-help code { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.install-help a { display: inline-block; margin-top: 6px; }
+.session-card .server-status { color: var(--muted); font-size: 13px; }
+.primary-button { background: var(--active); color: var(--active-text); border-color: var(--active); }
+.button-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 [hidden] { display: none !important; }
 @media (max-width: 680px) {
   .app-header { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 6px; padding-block: 8px; }

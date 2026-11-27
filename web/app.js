@@ -1,4 +1,5 @@
 import {loadClusters, clearClusters} from './clusters.js';
+import {apiFetch, isHosted} from './api.js';
 
 const $ = id => document.getElementById(id);
 const pageLinks = [...document.querySelectorAll('.page-nav a')];
@@ -88,7 +89,7 @@ async function syncStartupSetting(enabled) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({launch_at_login: enabled})
     };
-    const response = await fetch('/api/settings', options);
+    const response = await apiFetch('/api/settings', options);
     if (response.status === 404) throw new Error('Restart the local server to manage launch at login.');
     const data = await response.json();
     if (!response.ok || typeof data.launch_at_login !== 'boolean') {
@@ -243,7 +244,7 @@ function updateDayView() {
   $('historical-card').hidden = !historical;
 }
 async function fetchDashboard(day, force = false) {
-  const response = await fetch(`/api/dashboard?date=${encodeURIComponent(day)}${force ? '&refresh=1' : ''}`, {cache: 'no-store'});
+  const response = await apiFetch(`/api/dashboard?date=${encodeURIComponent(day)}${force ? '&refresh=1' : ''}`, {cache: 'no-store'});
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Unable to load attendance.');
   return data;
@@ -259,7 +260,11 @@ function showDashboard() {
 }
 
 async function fetchSessions() {
-  const response = await fetch('/api/session', {cache: 'no-store'});
+  if (isHosted) {
+    const health = await apiFetch('/api/health', {cache: 'no-store'});
+    if (!health.ok) throw new Error('The local Xattendo service is unavailable.');
+  }
+  const response = await apiFetch('/api/session', {cache: 'no-store'});
   if (response.status === 404) throw new Error('Restart the local server to check both sessions.');
   const sessions = await response.json();
   if (!['attendo', 'intra'].every(key => [true, false, null].includes(sessions[key]))) {
@@ -282,7 +287,22 @@ function showSessionScreen() {
   if (opening) $('session-title').focus();
 }
 
+function showInstallScreen(error) {
+  showSessionScreen();
+  $('session-title').textContent = 'Install Xattendo';
+  $('account-panel').hidden = true;
+  $('server-install').hidden = false;
+  $('server-status').textContent = error ? 'Xattendo was not detected.' : '';
+}
+
+function showAccountScreen() {
+  $('session-title').textContent = 'Connect accounts';
+  $('server-install').hidden = true;
+  $('account-panel').hidden = false;
+}
+
 function renderSessions(sessions) {
+  showAccountScreen();
   const missing = [];
   for (const service of ['intra', 'attendo']) {
     const active = sessions[service];
@@ -301,7 +321,7 @@ function renderSessions(sessions) {
   guidance.hidden = !missing.length;
   if (missing.length) {
     const account = missing.length === 1 ? missing[0] : 'both services';
-    guidance.textContent = `Sign in to ${account} in Firefox, Chrome, or Brave, then return here.`;
+    guidance.textContent = `Sign in to ${account}, then return here.`;
   }
   const message = (sessions.errors || []).join(' ');
   if ($('session-status').textContent !== message) $('session-status').textContent = message;
@@ -372,6 +392,8 @@ async function load(force = false, sessions = null) {
   $('refresh').textContent = 'Refreshing…';
   $('retry-session').disabled = true;
   $('retry-session').textContent = 'Checking…';
+  $('retry-server').disabled = true;
+  $('retry-server').textContent = 'Checking…';
   try {
     if (checkSignIn) {
       sessions = sessions ?? await fetchSessions();
@@ -403,7 +425,9 @@ async function load(force = false, sessions = null) {
     $('day-report').hidden = false;
   } catch (error) {
     if (request !== dashboardRequest) return;
-    if (checkSignIn && !sessions?.active) {
+    if (checkSignIn && isHosted) {
+      showInstallScreen(error);
+    } else if (checkSignIn && !sessions?.active) {
       renderSessions({errors: [error.message]});
       showSessionScreen();
     } else {
@@ -416,7 +440,9 @@ async function load(force = false, sessions = null) {
       $('refresh').disabled = false;
       $('refresh').textContent = 'Refresh data';
       $('retry-session').disabled = false;
-      $('retry-session').textContent = 'Refresh status';
+      $('retry-session').textContent = 'Check again';
+      $('retry-server').disabled = false;
+      $('retry-server').textContent = 'Check again';
     }
   }
 }
@@ -444,6 +470,19 @@ function selectDay(viewToday) {
   load();
 }
 $('retry-session').addEventListener('click', () => load(true));
+$('retry-server').addEventListener('click', () => load(true));
+$('copy-install').addEventListener('click', async () => {
+  const button = $('copy-install');
+  const command = $('install-command').textContent.trim();
+  try {
+    await navigator.clipboard.writeText(command);
+    button.textContent = 'Copied';
+    $('copy-status').textContent = 'Install command copied.';
+    setTimeout(() => { button.textContent = 'Copy command'; }, 1800);
+  } catch {
+    $('copy-status').textContent = 'Select and copy the command above.';
+  }
+});
 $('refresh').addEventListener('click', () => load(true));
 $('today').addEventListener('click', () => selectDay(true));
 $('yesterday').addEventListener('click', () => selectDay(false));
@@ -807,7 +846,10 @@ async function checkSession() {
       await load(true, sessions);
     }
   } catch (error) {
-    if (request === dashboardRequest && !$('session-screen').hidden) renderSessions({errors: [error.message]});
+    if (request === dashboardRequest && !$('session-screen').hidden) {
+      if (isHosted) showInstallScreen(error);
+      else renderSessions({errors: [error.message]});
+    }
   } finally {
     checkingSession = false;
   }

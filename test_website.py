@@ -167,6 +167,34 @@ class WebsiteTests(unittest.TestCase):
         update.assert_not_called()
         self.assertEqual(handler.send_json.call_args.args[1], 403)
 
+    def test_github_pages_origin_can_read_loopback_api(self):
+        handler = website.Handler.__new__(website.Handler)
+        handler.path = '/api/health'
+        handler.server = SimpleNamespace(server_port=47831)
+        handler.headers = {'Origin': 'https://mohamednasih.github.io'}
+        with patch.object(website.Handler, 'send_header') as header, \
+             patch.object(website.SimpleHTTPRequestHandler, 'end_headers'):
+            handler.end_headers()
+        header.assert_any_call('Access-Control-Allow-Origin', 'https://mohamednasih.github.io')
+        header.assert_any_call('Access-Control-Allow-Private-Network', 'true')
+        header.assert_any_call('Vary', 'Origin')
+
+    def test_github_pages_private_network_preflight_is_allowed(self):
+        handler = website.Handler.__new__(website.Handler)
+        handler.path = '/api/session'
+        handler.server = SimpleNamespace(server_port=47831)
+        handler.headers = {
+            'Origin': 'https://mohamednasih.github.io',
+            'Access-Control-Request-Private-Network': 'true',
+        }
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+        handler.do_OPTIONS()
+        handler.send_response.assert_called_once_with(204)
+        handler.send_header.assert_any_call('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        handler.send_header.assert_any_call('Access-Control-Allow-Headers', 'Content-Type')
+
     def test_responses_disable_browser_caching_by_default(self):
         with patch.object(website.Handler, 'send_header') as header, \
              patch.object(website.SimpleHTTPRequestHandler, 'end_headers'):

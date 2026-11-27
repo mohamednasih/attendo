@@ -4,6 +4,14 @@ A local dashboard for 1337 students to check their Attendo attendance, estimated
 logged time, and screen-lock history. See your daily target and review previous
 days in one place.
 
+The hosted dashboard is available at
+[mohamednasih.github.io/attendo](https://mohamednasih.github.io/attendo/). It is a
+static client: attendance data stays on the workstation and is read from the
+loopback-only Xattendo service.
+
+> [!WARNING]
+> For 1337 Rabat cluster workstations.
+
 ## Get started
 
 On Linux, with Python 3.10+ and Make installed:
