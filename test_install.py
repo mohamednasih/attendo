@@ -19,7 +19,7 @@ PROJECT = Path(__file__).resolve().parent
 class InstallTests(unittest.TestCase):
     def test_login_starts_server_with_browser_enabled_or_disabled(self):
         with tempfile.TemporaryDirectory() as directory, \
-             patch.object(server_control, 'manage', return_value=47832) as manage, \
+             patch.object(server_control, 'manage', return_value=47831) as manage, \
              patch.object(server_control, 'wait_for_server') as wait_for_server, \
              patch.object(server_control.webbrowser, 'open') as open_browser, \
              patch.object(server_control.subprocess, 'run',
@@ -37,9 +37,17 @@ class InstallTests(unittest.TestCase):
                         manage.assert_called_once_with('start', 47831)
                         wait_for_server.assert_called_once_with()
                         if enabled:
-                            open_browser.assert_called_once_with('http://localhost:47832/')
+                            open_browser.assert_called_once_with('https://xattendo.mnasih.me/')
                         else:
                             open_browser.assert_not_called()
+
+    def test_open_passes_the_running_server_port_to_the_hosted_dashboard(self):
+        with patch.object(server_control, 'manage', return_value=47832) as manage, \
+             patch.object(server_control.webbrowser, 'open') as open_browser, \
+             patch.object(server_control.sys, 'argv', ['server_control.py', 'open']):
+            server_control.main()
+        manage.assert_called_once_with('start', 47831)
+        open_browser.assert_called_once_with('https://xattendo.mnasih.me/?port=47832')
 
     def test_command_runs_from_another_directory_and_uninstalls(self):
         with tempfile.TemporaryDirectory(prefix='logged time ') as directory:

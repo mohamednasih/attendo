@@ -16,6 +16,13 @@ import urllib.request
 from desktop_startup import autostart_path, launch_at_login
 
 ROOT = Path(__file__).resolve().parent
+HOSTED_DASHBOARD = 'https://xattendo.mnasih.me/'
+DEFAULT_PORT = 47831
+
+
+def open_dashboard(port):
+    url = HOSTED_DASHBOARD if port == DEFAULT_PORT else f'{HOSTED_DASHBOARD}?port={port}'
+    webbrowser.open(url)
 
 
 def running(record):
@@ -50,7 +57,7 @@ def wait_for_server():
             time.sleep(1)
 
 
-def manage(action, port=47831):
+def manage(action, port=DEFAULT_PORT):
     state = state_directory()
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     pidfile = state / 'server.json'
@@ -118,7 +125,7 @@ def manage(action, port=47831):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['start', 'stop', 'open', 'login'])
-    parser.add_argument('--port', type=int, default=47831)
+    parser.add_argument('--port', type=int, default=DEFAULT_PORT)
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error('port must be between 1 and 65535')
@@ -127,7 +134,7 @@ def main():
             # Bring up the dashboard before any potentially slow network operation.
             port = manage('start', args.port)
             if launch_at_login(autostart_path()):
-                webbrowser.open(f'http://localhost:{port}/')
+                open_dashboard(port)
             before = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
             try:
                 update = subprocess.run([
@@ -149,7 +156,7 @@ def main():
             return
         port = manage('stop' if args.action == 'stop' else 'start', args.port)
         if args.action == 'open':
-            webbrowser.open(f'http://localhost:{port}/')
+            open_dashboard(port)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f'Error: {error}\n')
 

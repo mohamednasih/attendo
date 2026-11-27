@@ -5,7 +5,7 @@ logged time, and screen-lock history. See your daily target and review previous
 days in one place.
 
 The hosted dashboard is available at
-[mohamednasih.github.io/attendo](https://mohamednasih.github.io/attendo/). It is a
+[xattendo.mnasih.me](https://xattendo.mnasih.me/). It is a
 static client: attendance data stays on the workstation and is read from the
 loopback-only Xattendo service.
 
