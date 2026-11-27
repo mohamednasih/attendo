@@ -428,13 +428,16 @@ select:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
 #cluster-switcher button[aria-pressed="true"] { border-color: var(--cluster-accent); }
 #cluster-switcher button:hover { background: var(--surface); }
 #cluster-switcher button:focus-visible { outline-offset: -3px; }
+#cluster-switcher kbd {
+  display: inline-block; min-width: 1.5em; margin-inline-start: 6px; padding: 0 3px;
+  border: 1px solid var(--border); border-radius: 4px; color: var(--secondary);
+  background: var(--surface); font: 11px/1.4 ui-monospace, monospace; text-align: center;
+}
+#cluster-shortcuts { margin: 0; color: var(--secondary); font-size: 12px; }
 .cluster-heading { padding: 20px var(--map-pad); }
 .cluster-heading h2 { font-size: 20px; }
 #cluster-summary { margin: 2px 0 0; color: var(--secondary); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.cluster-search { display: flex; align-items: center; gap: 8px; padding: 7px 10px; color: var(--secondary); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
-.cluster-search:focus-within { outline: 2px solid var(--logged); outline-offset: 2px; }
-.cluster-search input { min-width: 0; width: 26ch; padding: 0; background: transparent; color: var(--ink); font-size: 13px; border: 0; outline: 0; }
 #cluster-map {
   align-self: center; container-type: size; min-height: 0; margin-block: 12px;
   width: min(calc(100% - 2 * var(--map-pad)), calc(var(--plan-width) * 1px)); aspect-ratio: var(--plan-ratio);
@@ -484,7 +487,5 @@ select:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
 }
 #cluster-results button:is(:hover, :focus-visible, [aria-pressed="true"]) { background: var(--surface); }
 @media (max-width: 480px) {
-  .cluster-search { width: 100%; }
-  .cluster-search input { width: 100%; }
   #cluster-inspector time { flex-basis: 100%; }
 }

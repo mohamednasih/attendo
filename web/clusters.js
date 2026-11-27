@@ -1,8 +1,9 @@
 import {apiFetch, apiUrl} from './api.js';
 
 const byId = id => document.getElementById(id);
+const page = byId('clusters-page');
 const switcher = byId('cluster-switcher');
-const search = byId('cluster-search');
+const shortcutHint = byId('cluster-shortcuts');
 const map = byId('cluster-map');
 const results = byId('cluster-results');
 const inspector = byId('cluster-inspector');
@@ -34,7 +35,8 @@ function groupStations(stations, floors) {
     const key = `${campus}/${name}`;
     if (!groups.has(key)) {
       const label = campuses.size > 1 ? `Campus ${campus ?? '?'} · ${name}` : name;
-      groups.set(key, {key, label, plan, stations: []});
+      const number = /^Cluster ([0-9])$/i.exec(name)?.[1];
+      groups.set(key, {key, label, number, plan, stations: []});
     }
     return groups.get(key);
   }
@@ -51,7 +53,11 @@ function groupStations(stations, floors) {
     }
     room.stations.push(station);
   }
-  for (const room of groups.values()) {
+  const rooms = [...groups.values()];
+  for (const room of rooms) {
+    if (room.number && !rooms.some(other => other !== room && other.number === room.number)) {
+      room.shortcut = room.number;
+    }
     room.stations.sort((a, b) => natural.compare(a.host, b.host));
     if (room.plan) {
       const emptyHosts = new Set(room.plan.seats.map(seat => seat.host));
@@ -60,15 +66,14 @@ function groupStations(stations, floors) {
       room.availability = `${emptyHosts.size}/${total} empty`;
     }
   }
-  return [...groups.values()].sort((a, b) => natural.compare(a.label, b.label));
+  return rooms.sort((a, b) => natural.compare(a.label, b.label));
 }
 
 function selectGroup(group, station) {
   current = group;
   selected = station;
-  search.value = '';
   render();
-  const target = station ? (group.plan ? map : results).querySelector(`[data-host="${CSS.escape(station.host)}"]`)
+  const target = station ? results.querySelector(`[data-host="${CSS.escape(station.host)}"]`)
                          : switcher.querySelector('[aria-pressed="true"]');
   target?.focus({preventScroll: true});
   if (station) target?.scrollIntoView({block: 'nearest', inline: 'nearest'});
@@ -76,11 +81,18 @@ function selectGroup(group, station) {
 
 function renderSwitcher() {
   switcher.replaceChildren();
+  shortcutHint.hidden = !groups.some(group => group.shortcut);
   for (const group of groups) {
     const button = element('button', group.label);
+    if (group.shortcut) {
+      const key = element('kbd', group.shortcut);
+      key.setAttribute('aria-hidden', 'true');
+      button.append(key);
+      button.setAttribute('aria-keyshortcuts', group.shortcut);
+    }
     button.append(element('small', group.availability || 'Capacity unknown'));
     button.type = 'button';
-    button.setAttribute('aria-pressed', String(!search.value.trim() && group === current));
+    button.setAttribute('aria-pressed', String(group === current));
     button.addEventListener('click', () => selectGroup(group));
     switcher.append(button);
   }
@@ -282,11 +294,11 @@ function renderMap() {
   map.replaceChildren(plan);
 }
 
-function addResult(group, station) {
+function addWorkstation(group, station) {
   const button = element('button');
   button.type = 'button';
   button.dataset.host = station.host;
-  button.setAttribute('aria-pressed', String(!search.value.trim() && station === selected));
+  button.setAttribute('aria-pressed', String(station === selected));
   button.append(element('strong', station.host), element('span', station.login || 'Login unavailable'));
   const location = element('small', group.label);
   button.append(location);
@@ -298,36 +310,25 @@ function addResult(group, station) {
 
 function render() {
   hideProfile();
-  const query = search.value.trim().toLowerCase();
-  const searching = Boolean(query);
-  byId('cluster-heading').textContent = searching ? 'Search results' : current?.label || 'Workstation map';
+  byId('cluster-heading').textContent = current?.label || 'Workstation map';
   renderSwitcher();
   results.replaceChildren();
-  map.hidden = searching || !current?.plan;
+  map.hidden = !current?.plan;
   byId('cluster-heading').parentElement.classList.toggle('sr-only', !map.hidden);
   results.hidden = !current || !map.hidden;
-  inspector.hidden = searching || !current;
+  inspector.hidden = !current;
   let summary = '42 Intra reports no active workstations.';
-  if (searching) {
-    for (const group of groups) {
-      for (const station of group.stations) {
-        if ([station.host, station.login || ''].some(value => value.toLowerCase().includes(query))) addResult(group, station);
-      }
-    }
-    const count = results.childElementCount;
-    summary = count ? `${count} matching workstation${count === 1 ? '' : 's'} across all clusters` : 'No matching login or workstation.';
-  } else if (current) {
+  if (current) {
     const count = current.stations.length;
     summary = `${count} active workstation${count === 1 ? '' : 's'} in ${current.label}`;
     if (current.plan) renderMap();
     else {
       summary += ' · Floor plan unavailable';
-      current.stations.forEach(station => addResult(current, station));
+      current.stations.forEach(station => addWorkstation(current, station));
     }
     renderInspector();
   }
   byId('cluster-summary').textContent = summary;
-  search.parentElement.hidden = !groups.length;
 }
 
 export function clearClusters() {
@@ -335,7 +336,6 @@ export function clearClusters() {
   request = null;
   groups = [];
   current = selected = null;
-  search.value = '';
   map.replaceChildren();
   inspector.replaceChildren();
   render();
@@ -362,7 +362,6 @@ export async function loadClusters() {
     groups = groupStations(data.stations, data.floors || []);
     current = groups.find(group => group.key === current?.key) || groups[0];
     selected = current?.stations.find(station => station.host === selected?.host);
-    if (!current) search.value = '';
     render();
   } catch (error) {
     if (controller.signal.aborted) return;
@@ -374,11 +373,18 @@ export async function loadClusters() {
   }
 }
 
-search.addEventListener('input', render);
 profileCard.addEventListener('pointerenter', () => clearTimeout(dismissDelay));
 profileCard.addEventListener('pointerleave', scheduleProfileDismiss);
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') hideProfile();
+  if (!/^[0-9]$/.test(event.key) || page.closest('[hidden]') || document.querySelector('dialog[open]')) return;
+  if (event.defaultPrevented || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+  if (event.target.isContentEditable || event.target.closest?.('input, textarea, select')) return;
+  const group = groups.find(group => group.shortcut === event.key);
+  if (group && group !== current) {
+    event.preventDefault();
+    selectGroup(group);
+  }
 });
 window.addEventListener('hashchange', hideProfile);
 window.addEventListener('resize', positionProfile);

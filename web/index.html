@@ -278,18 +278,15 @@ make install</code></pre>
 </div>
 <section id="clusters-page" class="card clusters" aria-label="Campus workstations" hidden>
   <div class="cluster-topbar">
-    <div id="cluster-switcher" role="group" aria-label="Choose a cluster"></div>
-    <label class="cluster-search" hidden>
-      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6"/></svg>
-      <input id="cluster-search" type="search" aria-label="Find a login or workstation" placeholder="Find a login or workstation">
-    </label>
+    <div id="cluster-switcher" role="group" aria-label="Choose a cluster" aria-describedby="cluster-shortcuts"></div>
+    <p id="cluster-shortcuts" hidden>Press a number key to switch clusters.</p>
   </div>
   <div class="cluster-heading">
     <h2 id="cluster-heading">Workstation map</h2>
     <p id="cluster-summary" role="status"></p>
   </div>
   <div id="cluster-map" role="region" aria-label="Workstation map" hidden></div>
-  <ul id="cluster-results" aria-label="Matching workstations" hidden></ul>
+  <ul id="cluster-results" aria-label="Active workstations" hidden></ul>
   <div id="cluster-inspector" role="status" hidden></div>
   <a id="cluster-sign-in" class="session-link" href="https://meta.intra.42.fr/clusters" target="_blank" rel="noopener noreferrer" hidden>Open 42 Intra ↗</a>
 </section>

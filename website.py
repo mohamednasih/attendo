@@ -22,7 +22,7 @@ from desktop_startup import autostart_path, launch_at_login, set_launch_at_login
 
 ROOT = Path(__file__).resolve().parent
 SETTINGS_LOCK = threading.Lock()
-PAGES_ORIGIN = 'https://mohamednasih.github.io'
+HOSTED_ORIGINS = {'https://mohamednasih.github.io', 'https://xattendo.mnasih.me'}
 
 
 def command_json(script, args):
@@ -96,7 +96,7 @@ class Handler(SimpleHTTPRequestHandler):
         port = self.server.server_port
         suffix = f':{port}' if port != 80 else ''
         local_origins = {f'http://localhost{suffix}', f'http://127.0.0.1{suffix}'}
-        return origin if origin == PAGES_ORIGIN or origin in local_origins else None
+        return origin if origin in HOSTED_ORIGINS or origin in local_origins else None
 
     def end_headers(self, *, cache_portrait=False):
         if cache_portrait:

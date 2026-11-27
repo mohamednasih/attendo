@@ -255,7 +255,7 @@ function showDashboard() {
   const returnFocus = $('session-screen').contains(document.activeElement);
   $('session-screen').hidden = true;
   $('dashboard').hidden = false;
-  if (opening && !$('clusters-page').hidden) loadClusters();
+  if (opening) loadClusters();
   if (returnFocus) document.querySelector('.page-nav [aria-current]').focus();
 }
 
